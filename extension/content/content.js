@@ -4,6 +4,7 @@ if (window.__sentinelScannerActive) {
   window.__sentinelScannerActive = true;
 (async () => {
   const { CONFIG } = await import(chrome.runtime.getURL('extension/config.js'));
+  const { createFeedbackManager } = await import(chrome.runtime.getURL('extension/content/feedback.js'));
   const {
     API_KEY,
     API_BASES,
@@ -37,172 +38,6 @@ if (window.__sentinelScannerActive) {
 
   const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  const readLocalKey = async (key, fallback = []) => {
-    if (!storageLocal) {
-      return fallback;
-    }
-    return new Promise((resolve) => {
-      storageLocal.get([key], (result) => {
-        if (chrome.runtime?.lastError) {
-          console.warn('Storage read failed:', chrome.runtime.lastError);
-          resolve(fallback);
-          return;
-        }
-        resolve(result?.[key] ?? fallback);
-      });
-    });
-  };
-
-  const writeLocalKey = async (key, value) => {
-    if (!storageLocal) {
-      return false;
-    }
-    return new Promise((resolve) => {
-      storageLocal.set({ [key]: value }, () => {
-        if (chrome.runtime?.lastError) {
-          console.warn('Storage write failed:', chrome.runtime.lastError);
-          resolve(false);
-          return;
-        }
-        resolve(true);
-      });
-    });
-  };
-
-  const reportPendingCount = (count) => notifyExtension('feedback-pending', { count });
-
-  const addFeedbackHistoryEntry = async (entry) => {
-    if (!entry) {
-      return;
-    }
-    const history = await readLocalKey(STORAGE_KEYS.feedbackHistory, []);
-    const list = Array.isArray(history) ? history : [];
-    list.unshift(entry);
-    if (list.length > MAX_FEEDBACK_HISTORY) {
-      list.length = MAX_FEEDBACK_HISTORY;
-    }
-    await writeLocalKey(STORAGE_KEYS.feedbackHistory, list);
-    notifyExtension('feedback-history-updated', { entryId: entry.id ?? null });
-  };
-
-  const updateFeedbackHistoryEntry = async (id, updates) => {
-    if (!id) {
-      return;
-    }
-    const history = await readLocalKey(STORAGE_KEYS.feedbackHistory, []);
-    if (!Array.isArray(history) || history.length === 0) {
-      return;
-    }
-    const list = [...history];
-    const index = list.findIndex((item) => item?.id === id);
-    if (index === -1) {
-      await addFeedbackHistoryEntry({ id, ...updates });
-      return;
-    }
-    list[index] = { ...list[index], ...updates };
-    await writeLocalKey(STORAGE_KEYS.feedbackHistory, list);
-    notifyExtension('feedback-history-updated', { entryId: id });
-  };
-
-  const queueFeedbackReport = async (item) => {
-    if (!item) {
-      return false;
-    }
-    const existing = await readLocalKey(STORAGE_KEYS.pendingReports, []);
-    const queue = Array.isArray(existing) ? existing : [];
-    queue.push(item);
-    const success = await writeLocalKey(STORAGE_KEYS.pendingReports, queue);
-    if (success) {
-      reportPendingCount(queue.length);
-      schedulePendingFlush(5000);
-    }
-    return success;
-  };
-
-  let flushingFeedback = false;
-  let pendingFlushTimer = null;
-
-  const schedulePendingFlush = (delayMs = 0) => {
-    if (!storageLocal) {
-      return;
-    }
-    if (pendingFlushTimer) {
-      return;
-    }
-    pendingFlushTimer = setTimeout(() => {
-      pendingFlushTimer = null;
-      void flushPendingFeedback();
-    }, Math.max(0, delayMs));
-  };
-
-  const flushPendingFeedback = async () => {
-    if (!storageLocal) {
-      return;
-    }
-    if (flushingFeedback) {
-      return;
-    }
-
-    flushingFeedback = true;
-    try {
-      const pending = await readLocalKey(STORAGE_KEYS.pendingReports, []);
-      const queue = Array.isArray(pending) ? [...pending] : [];
-      if (queue.length === 0) {
-        reportPendingCount(0);
-        return;
-      }
-
-      const remaining = [];
-
-      for (const item of queue) {
-        const baseHistory = item.history ?? null;
-        try {
-          await sendFeedbackPayload(item.payload);
-          await updateFeedbackHistoryEntry(item.id, {
-            ...(baseHistory || {}),
-            status: 'sent',
-            sentAt: Date.now(),
-            lastError: null
-          });
-        } catch (error) {
-          const retries = (item.retries ?? 0) + 1;
-          const message = error?.message ?? 'Failed to send feedback.';
-          remaining.push({
-            ...item,
-            retries,
-            lastError: message
-          });
-          await updateFeedbackHistoryEntry(item.id, {
-            ...(baseHistory || {}),
-            status: 'queued',
-            retries,
-            lastError: message
-          });
-        }
-      }
-
-      await writeLocalKey(STORAGE_KEYS.pendingReports, remaining);
-      reportPendingCount(remaining.length);
-      if (remaining.length > 0) {
-        schedulePendingFlush(15000);
-      }
-    } finally {
-      flushingFeedback = false;
-    }
-  };
-
-  const initializePendingFeedback = async () => {
-    if (!storageLocal) {
-      return;
-    }
-    const pending = await readLocalKey(STORAGE_KEYS.pendingReports, []);
-    const count = Array.isArray(pending) ? pending.length : 0;
-    reportPendingCount(count);
-    if (count > 0) {
-      schedulePendingFlush(0);
-    }
-  };
-
   const overlayRegistry = new Map();
   const processedSignatures = new Set();
   let overlayListenersActive = false;
@@ -224,8 +59,6 @@ if (window.__sentinelScannerActive) {
       // ignore messaging failures
     }
   };
-
-  window.addEventListener('online', () => schedulePendingFlush(0));
 
   const emitEvent = (name, detail = {}) => {
     try {
@@ -639,11 +472,11 @@ if (window.__sentinelScannerActive) {
     return { threshold, highlightStyle };
   };
 
-  async function fetchWithFallback(path, payload) {
-    let lastError;
+async function fetchWithFallback(path, payload) {
+  let lastError;
 
-    for (const base of API_BASES) {
-      const endpoint = `${base}${path}`;
+  for (const base of API_BASES) {
+    const endpoint = `${base}${path}`;
       const headers = {
         'Content-Type': 'application/json'
       };
@@ -668,8 +501,29 @@ if (window.__sentinelScannerActive) {
       }
     }
 
-    throw lastError ?? new Error('Unable to reach prediction API.');
-  }
+  throw lastError ?? new Error('Unable to reach prediction API.');
+}
+
+  const {
+    addFeedbackHistoryEntry,
+    updateFeedbackHistoryEntry,
+    queueFeedbackReport,
+    schedulePendingFlush,
+    flushPendingFeedback,
+    initializePendingFeedback,
+    sendFeedbackPayload
+  } = createFeedbackManager({
+    storage: storageLocal,
+    notifyExtension,
+    storageKeys: STORAGE_KEYS,
+    maxHistory: MAX_FEEDBACK_HISTORY,
+    retryAttempts: FEEDBACK_RETRY_ATTEMPTS,
+    retryDelays: FEEDBACK_RETRY_DELAYS,
+    delay,
+    fetchWithFallback
+  });
+
+  window.addEventListener('online', () => schedulePendingFlush(0));
 
   const fetchPredictionSingle = async (text) => fetchWithFallback('/predict', { text });
 
@@ -692,23 +546,6 @@ if (window.__sentinelScannerActive) {
       }
       return singles;
     }
-  };
-
-  const sendFeedbackPayload = async (payload) => {
-    let lastError;
-    for (let attempt = 0; attempt < FEEDBACK_RETRY_ATTEMPTS; attempt += 1) {
-      if (attempt > 0) {
-        const delayMs = FEEDBACK_RETRY_DELAYS[attempt] ?? FEEDBACK_RETRY_DELAYS[FEEDBACK_RETRY_DELAYS.length - 1];
-        await delay(delayMs);
-      }
-      try {
-        await fetchWithFallback('/report', payload);
-        return;
-      } catch (error) {
-        lastError = error;
-      }
-    }
-    throw lastError ?? new Error('Unable to submit feedback.');
   };
 
   const textSnippet = (text) => {
