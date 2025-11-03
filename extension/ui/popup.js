@@ -1,5 +1,9 @@
 document.addEventListener('DOMContentLoaded', () => {
   const API_ENDPOINTS = ['https://localhost:5000/predict', 'http://localhost:5000/predict'];
+  const STORAGE_KEYS = {
+    pendingReports: 'debPendingReports',
+    feedbackHistory: 'debFeedbackHistory'
+  };
   const scanButton = document.getElementById('scanButton');
   const analyzeButton = document.getElementById('analyzeButton');
   const analysisInput = document.getElementById('analysisInput');
@@ -8,6 +12,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const sensitivityValue = document.getElementById('sensitivityValue');
   const pageStatus = document.getElementById('pageStatus');
   const highlightInputs = Array.from(document.querySelectorAll('input[name="popupHighlightStyle"]'));
+  const historyList = document.getElementById('feedbackHistoryList');
+  const pendingCountBadge = document.getElementById('pendingCount');
   const highlightLabels = {
     highlight: 'Highlight',
     blur: 'Blur',
@@ -103,6 +109,128 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  const renderPendingCount = (count) => {
+    if (!pendingCountBadge) {
+      return;
+    }
+    if (count > 0) {
+      pendingCountBadge.textContent = `${count} pending`;
+      pendingCountBadge.dataset.status = 'pending';
+    } else {
+      pendingCountBadge.textContent = 'No pending';
+      pendingCountBadge.dataset.status = 'clear';
+    }
+  };
+
+  const formatRelativeTime = (timestamp) => {
+    if (!timestamp) {
+      return '';
+    }
+    const diff = Date.now() - timestamp;
+    if (Number.isNaN(diff)) {
+      return '';
+    }
+    if (diff < 60_000) {
+      return 'just now';
+    }
+    if (diff < 3_600_000) {
+      const minutes = Math.round(diff / 60_000);
+      return `${minutes}m ago`;
+    }
+    if (diff < 86_400_000) {
+      const hours = Math.round(diff / 3_600_000);
+      return `${hours}h ago`;
+    }
+    const days = Math.round(diff / 86_400_000);
+    return `${days}d ago`;
+  };
+
+  const createHistoryItem = (entry) => {
+    const li = document.createElement('li');
+    li.className = `feedback-item feedback-item--${entry.status || 'sent'}`;
+
+    const pill = document.createElement('span');
+    pill.className = 'feedback-pill';
+    const pillLabel =
+      entry.status === 'queued'
+        ? 'Queued'
+        : entry.reportType === 'not_hate'
+        ? 'Not hate?'
+        : 'Flagged';
+    pill.textContent = pillLabel;
+
+    const summary = document.createElement('span');
+    summary.className = 'feedback-summary';
+    const snippet = entry.snippet ? entry.snippet.slice(0, 80) : '';
+    const snippetText = snippet ? `“${snippet}${entry.snippet && entry.snippet.length > 80 ? '…' : ''}”` : '';
+    const scoreText =
+      typeof entry.score === 'number' && Number.isFinite(entry.score)
+        ? ` • ${entry.score.toFixed(2)}`
+        : '';
+    summary.textContent = `${pillLabel}${scoreText}${snippetText ? ` • ${snippetText}` : ''}`;
+
+    const meta = document.createElement('span');
+    meta.className = 'feedback-meta';
+    const time = entry.sentAt ?? entry.queuedAt ?? entry.createdAt;
+    meta.textContent = formatRelativeTime(time);
+
+    li.appendChild(pill);
+    li.appendChild(summary);
+    if (meta.textContent) {
+      li.appendChild(meta);
+    }
+    return li;
+  };
+
+  const renderHistory = (history) => {
+    if (!historyList) {
+      return;
+    }
+    historyList.innerHTML = '';
+    if (!Array.isArray(history) || history.length === 0) {
+      const empty = document.createElement('li');
+      empty.className = 'feedback-item feedback-item--empty';
+      empty.textContent = 'No feedback yet.';
+      historyList.appendChild(empty);
+      return;
+    }
+    history.slice(0, 8).forEach((entry) => {
+      historyList.appendChild(createHistoryItem(entry));
+    });
+  };
+
+  const readLocal = (keys) =>
+    new Promise((resolve) => {
+      if (!chrome.storage?.local) {
+        resolve({});
+        return;
+      }
+      chrome.storage.local.get(keys, (result) => {
+        if (chrome.runtime?.lastError) {
+          console.warn('Unable to read local storage:', chrome.runtime.lastError);
+          resolve({});
+          return;
+        }
+        resolve(result);
+      });
+    });
+
+  const loadFeedbackMeta = async () => {
+    try {
+      const data = await readLocal([STORAGE_KEYS.pendingReports, STORAGE_KEYS.feedbackHistory]);
+      const pending = Array.isArray(data?.[STORAGE_KEYS.pendingReports])
+        ? data[STORAGE_KEYS.pendingReports].length
+        : 0;
+      const history = Array.isArray(data?.[STORAGE_KEYS.feedbackHistory])
+        ? data[STORAGE_KEYS.feedbackHistory]
+        : [];
+      renderPendingCount(pending);
+      renderHistory(history);
+    } catch (error) {
+      console.warn('Failed to load feedback metadata.', error);
+    }
+  };
+
   if (scanButton) {
     scanButton.addEventListener('click', async () => {
       setStatus('Starting scan…');
@@ -150,6 +278,23 @@ document.addEventListener('DOMContentLoaded', () => {
           break;
         case 'scan-error':
           setStatus(`Scan failed: ${message.detail?.message ?? 'See console.'}`);
+          break;
+        case 'feedback-history-updated':
+          loadFeedbackMeta();
+          break;
+        case 'feedback-pending':
+          renderPendingCount(message.detail?.count ?? 0);
+          break;
+        case 'feedback-queued':
+          setStatus('Feedback queued for retry.', { clearAfter: 2000 });
+          loadFeedbackMeta();
+          break;
+        case 'feedback-sent':
+          setStatus('Feedback submitted.', { clearAfter: 1500 });
+          loadFeedbackMeta();
+          break;
+        case 'feedback-error':
+          setStatus('Feedback failed. Try again later.', { clearAfter: 2500 });
           break;
         default:
           break;
@@ -205,4 +350,5 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   loadSettings();
+  loadFeedbackMeta();
 });

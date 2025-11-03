@@ -3,9 +3,9 @@
 ## Current Status
 - Chrome MV3 extension + Flask backend run locally (trust `~/.finalextension/localhost-cert.pem` in Keychain to silence HTTPS warnings).
 - ONNX model (`TaiwoOgun/deberta-v3-hate-speech-onnx`) loads via `optimum.onnxruntime`; GPU optional (torch fallback to CPU).
-- Content script (`extension/content/content.js`) now scopes highlights to canonical text containers, dedupes flagged spans, and renders consolidated blur/redact controls with show/hide + feedback buttons.
+- Content script (`extension/content/content.js`) now scopes highlights to canonical text containers, dedupes flagged spans, renders consolidated blur/redact controls with show/hide + feedback buttons, and queues feedback with retry/backoff.
 - Backend exposes `/predict`, `/predict/batch`, `/report`; feedback persistence via `backend/reports.db`.
-- Popup includes a live sensitivity slider and highlight-style selector synced through `chrome.storage.sync`.
+- Popup includes a live sensitivity slider, highlight-style selector, and a feedback activity panel (pending count + history) backed by `chrome.storage.local`.
 
 ## Open Challenges / Known Gaps
 - No automated detection yet; user must click “Scan This Page”.
@@ -31,12 +31,13 @@
 
 ## Recent Testing / Logs
 - Manual test only: load backend (`python backend/app.py`), accept HTTPS cert in Chrome, load extension, run `Scan This Page`, verify blur controls appear once per post.
+- Spot-check feedback queue: toggle browser offline, submit “Not hate?” to confirm it queues, then go back online to ensure it flushes.
 - No automated test suite yet; no CI logs available.
 
 ## API Contracts / Model Outputs
 - `POST /predict` → `{"label": "NOT_HATE"|"HATE", "score": 0.xx}`
 - `POST /predict/batch` → `{"results": [{"label": ..., "score": ...}, ...]}`
-- `POST /report` (pending wiring) expects `{"text": "...", "report_type": "not_hate"|"flag"}` and returns `{"status": "ok"}`
+- `POST /report` expects `{"text": "...", "report_type": "not_hate"|"flag"}` and returns `{"status": "ok"}`
 - Model: sequence classification; scores already normalized.
 
 ## Environment / Tooling
@@ -48,5 +49,6 @@
 ## Notes
 - Do not delete `backend/reports.db`; it stores feedback history.
 - Trust the generated cert once (Keychain → Always Trust). Without that Chrome will flag `https://localhost:5000` as insecure and block requests.
+- Feedback queue + history persist in `chrome.storage.local` under keys `debPendingReports` and `debFeedbackHistory`; flushes trigger automatically when connectivity returns.
 - When editing `extension/content/content.js`, prefer modularization soon—file is large but the current structure relies on globals.
 - Keep README/HANDOFF in sync with dependency or workflow changes.

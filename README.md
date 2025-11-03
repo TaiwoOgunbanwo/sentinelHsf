@@ -25,7 +25,7 @@ Sentinel is a Chrome manifest v3 extension paired with a secure Flask API that c
 
 - **Chrome extension** (`extension/`):
   - `content/content.js` injects the scanner, batches text into `/predict` or `/predict/batch`, dedupes flagged spans, and renders inline controls.
-  - `ui/popup.*` powers the action popup (manual analysis, scan trigger, sensitivity slider, highlight-style selector).
+  - `ui/popup.*` powers the action popup (manual analysis, scan trigger, sensitivity slider, highlight-style selector, feedback queue/history).
   - `ui/options.*` persists highlight style and threshold settings.
 - **Flask backend** (`backend/app.py`):
   - Loads `TaiwoOgun/deberta-v3-hate-speech-onnx` via `optimum.onnxruntime`.
@@ -61,7 +61,8 @@ See `backend/requirements.txt` for the exact Python packages (currently unpinned
    - Popup slider controls sensitivity (`chrome.storage.sync`), radio buttons switch highlight style, and the scan button triggers analysis.
 
 3. **Feedback**
-   - Inline “Not hate?” / “Flag” controls POST to `/report`, disable during submission, and remove highlights when dismissed.
+   - Inline “Not hate?” / “Flag” controls POST to `/report`, disable during submission, queue failed attempts for retry, and remove highlights when dismissals succeed.
+   - The popup shows pending feedback count plus a recent history pulled from `chrome.storage.local`.
 
 ## Recent Decisions
 
@@ -70,6 +71,7 @@ See `backend/requirements.txt` for the exact Python packages (currently unpinned
 - Deduped highlighted ranges so blur/redact controls appear once per detected snippet and grouped blur/redact toggles manage all fragments at once.
 - Added a sensitivity slider to the popup; both popup and options share `chrome.storage` values.
 - Added highlight-style controls directly to the popup for quick adjustments (options page remains available).
+- Hardened the feedback path with retry/backoff, offline queuing (via `chrome.storage.local`), and a popup audit history.
 - Hardened backend imports: optional torch, friendly errors when dependencies are missing.
 
 ## Limitations & Next Steps

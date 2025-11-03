@@ -32,6 +32,182 @@
   const HIGHLIGHT_STYLE_OPTIONS = ['highlight', 'blur', 'redact'];
   const DEFAULT_STYLE = 'highlight';
   const FEEDBACK_PREFIX = '[DeBERTa Detector]';
+  const STORAGE_KEYS = {
+    pendingReports: 'debPendingReports',
+    feedbackHistory: 'debFeedbackHistory'
+  };
+  const MAX_FEEDBACK_HISTORY = 50;
+  const FEEDBACK_RETRY_ATTEMPTS = 3;
+  const FEEDBACK_RETRY_DELAYS = [0, 1000, 3000];
+  const storageLocal = chrome?.storage?.local ?? null;
+
+  const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const readLocalKey = async (key, fallback = []) => {
+    if (!storageLocal) {
+      return fallback;
+    }
+    return new Promise((resolve) => {
+      storageLocal.get([key], (result) => {
+        if (chrome.runtime?.lastError) {
+          console.warn('Storage read failed:', chrome.runtime.lastError);
+          resolve(fallback);
+          return;
+        }
+        resolve(result?.[key] ?? fallback);
+      });
+    });
+  };
+
+  const writeLocalKey = async (key, value) => {
+    if (!storageLocal) {
+      return false;
+    }
+    return new Promise((resolve) => {
+      storageLocal.set({ [key]: value }, () => {
+        if (chrome.runtime?.lastError) {
+          console.warn('Storage write failed:', chrome.runtime.lastError);
+          resolve(false);
+          return;
+        }
+        resolve(true);
+      });
+    });
+  };
+
+  const reportPendingCount = (count) => notifyExtension('feedback-pending', { count });
+
+  const addFeedbackHistoryEntry = async (entry) => {
+    if (!entry) {
+      return;
+    }
+    const history = await readLocalKey(STORAGE_KEYS.feedbackHistory, []);
+    const list = Array.isArray(history) ? history : [];
+    list.unshift(entry);
+    if (list.length > MAX_FEEDBACK_HISTORY) {
+      list.length = MAX_FEEDBACK_HISTORY;
+    }
+    await writeLocalKey(STORAGE_KEYS.feedbackHistory, list);
+    notifyExtension('feedback-history-updated', { entryId: entry.id ?? null });
+  };
+
+  const updateFeedbackHistoryEntry = async (id, updates) => {
+    if (!id) {
+      return;
+    }
+    const history = await readLocalKey(STORAGE_KEYS.feedbackHistory, []);
+    if (!Array.isArray(history) || history.length === 0) {
+      return;
+    }
+    const list = [...history];
+    const index = list.findIndex((item) => item?.id === id);
+    if (index === -1) {
+      await addFeedbackHistoryEntry({ id, ...updates });
+      return;
+    }
+    list[index] = { ...list[index], ...updates };
+    await writeLocalKey(STORAGE_KEYS.feedbackHistory, list);
+    notifyExtension('feedback-history-updated', { entryId: id });
+  };
+
+  const queueFeedbackReport = async (item) => {
+    if (!item) {
+      return false;
+    }
+    const existing = await readLocalKey(STORAGE_KEYS.pendingReports, []);
+    const queue = Array.isArray(existing) ? existing : [];
+    queue.push(item);
+    const success = await writeLocalKey(STORAGE_KEYS.pendingReports, queue);
+    if (success) {
+      reportPendingCount(queue.length);
+      schedulePendingFlush(5000);
+    }
+    return success;
+  };
+
+  let flushingFeedback = false;
+  let pendingFlushTimer = null;
+
+  const schedulePendingFlush = (delayMs = 0) => {
+    if (!storageLocal) {
+      return;
+    }
+    if (pendingFlushTimer) {
+      return;
+    }
+    pendingFlushTimer = setTimeout(() => {
+      pendingFlushTimer = null;
+      void flushPendingFeedback();
+    }, Math.max(0, delayMs));
+  };
+
+  const flushPendingFeedback = async () => {
+    if (!storageLocal) {
+      return;
+    }
+    if (flushingFeedback) {
+      return;
+    }
+
+    flushingFeedback = true;
+    try {
+      const pending = await readLocalKey(STORAGE_KEYS.pendingReports, []);
+      const queue = Array.isArray(pending) ? [...pending] : [];
+      if (queue.length === 0) {
+        reportPendingCount(0);
+        return;
+      }
+
+      const remaining = [];
+
+      for (const item of queue) {
+        const baseHistory = item.history ?? null;
+        try {
+          await sendFeedbackPayload(item.payload);
+          await updateFeedbackHistoryEntry(item.id, {
+            ...(baseHistory || {}),
+            status: 'sent',
+            sentAt: Date.now(),
+            lastError: null
+          });
+        } catch (error) {
+          const retries = (item.retries ?? 0) + 1;
+          const message = error?.message ?? 'Failed to send feedback.';
+          remaining.push({
+            ...item,
+            retries,
+            lastError: message
+          });
+          await updateFeedbackHistoryEntry(item.id, {
+            ...(baseHistory || {}),
+            status: 'queued',
+            retries,
+            lastError: message
+          });
+        }
+      }
+
+      await writeLocalKey(STORAGE_KEYS.pendingReports, remaining);
+      reportPendingCount(remaining.length);
+      if (remaining.length > 0) {
+        schedulePendingFlush(15000);
+      }
+    } finally {
+      flushingFeedback = false;
+    }
+  };
+
+  const initializePendingFeedback = async () => {
+    if (!storageLocal) {
+      return;
+    }
+    const pending = await readLocalKey(STORAGE_KEYS.pendingReports, []);
+    const count = Array.isArray(pending) ? pending.length : 0;
+    reportPendingCount(count);
+    if (count > 0) {
+      schedulePendingFlush(0);
+    }
+  };
 
   const overlayRegistry = new Map();
   const processedSignatures = new Set();
@@ -54,6 +230,8 @@
       // ignore messaging failures
     }
   };
+
+  window.addEventListener('online', () => schedulePendingFlush(0));
 
   const emitEvent = (name, detail = {}) => {
     try {
@@ -467,7 +645,7 @@
     return { threshold, highlightStyle };
   };
 
-  const fetchWithFallback = async (path, payload) => {
+  async function fetchWithFallback(path, payload) {
     let lastError;
 
     for (const base of API_BASES) {
@@ -493,7 +671,7 @@
     }
 
     throw lastError ?? new Error('Unable to reach prediction API.');
-  };
+  }
 
   const fetchPredictionSingle = async (text) => fetchWithFallback('/predict', { text });
 
@@ -516,6 +694,23 @@
       }
       return singles;
     }
+  };
+
+  const sendFeedbackPayload = async (payload) => {
+    let lastError;
+    for (let attempt = 0; attempt < FEEDBACK_RETRY_ATTEMPTS; attempt += 1) {
+      if (attempt > 0) {
+        const delayMs = FEEDBACK_RETRY_DELAYS[attempt] ?? FEEDBACK_RETRY_DELAYS[FEEDBACK_RETRY_DELAYS.length - 1];
+        await delay(delayMs);
+      }
+      try {
+        await fetchWithFallback('/report', payload);
+        return;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError ?? new Error('Unable to submit feedback.');
   };
 
   const textSnippet = (text) => {
@@ -618,28 +813,73 @@
       overlayRegistry.delete(el);
     }
 
-    const scoreText = formatScore(result?.score ?? 0);
+    const rawScore = typeof result?.score === 'number' ? Number(result.score) : null;
+    const scoreText = formatScore(rawScore ?? 0);
     const feedbackText = (snippets.length ? snippets.join(' ') : sanitizeText(el.innerText)).slice(0, 4000);
 
     const logFeedback = async (action, button) => {
       const reportType = action === 'dismiss' ? 'not_hate' : 'flag';
       const originalLabel = button.textContent;
+      const payload = {
+        text: feedbackText,
+        report_type: reportType
+      };
+      const historyId = `${signature ?? `anon-${Math.random().toString(16).slice(2)}`}:${reportType}:${Date.now()}`;
+      const baseHistory = {
+        id: historyId,
+        action,
+        reportType,
+        snippet: textSnippet(feedbackText),
+        score: rawScore,
+        createdAt: Date.now(),
+        status: 'pending'
+      };
+      const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
 
       button.disabled = true;
       button.textContent = action === 'dismiss' ? 'Removing…' : 'Sending…';
 
+      const queueReport = async (message) => {
+        const queued = await queueFeedbackReport({
+          id: historyId,
+          payload,
+          history: baseHistory,
+          retries: 0,
+          lastError: message
+        });
+        if (queued) {
+          await addFeedbackHistoryEntry({
+            ...baseHistory,
+            status: 'queued',
+            queuedAt: Date.now(),
+            lastError: message
+          });
+          notifyExtension('feedback-queued', { entryId: historyId });
+          button.textContent = 'Queued';
+          return false;
+        }
+
+        console.error('Failed to queue feedback:', message);
+        button.disabled = false;
+        button.textContent = originalLabel || 'Retry';
+        notifyExtension('feedback-error', { entryId: historyId, message });
+        return false;
+      };
+
+      if (offline) {
+        return queueReport('Offline');
+      }
+
       try {
-        await fetchWithFallback('/report', {
-          text: feedbackText,
-          report_type: reportType
+        await sendFeedbackPayload(payload);
+
+        await addFeedbackHistoryEntry({
+          ...baseHistory,
+          status: 'sent',
+          sentAt: Date.now()
         });
 
-        console.info(`${FEEDBACK_PREFIX} feedback`, {
-          action,
-          label: result?.label,
-          score: result?.score,
-          snippet: feedbackText
-        });
+        notifyExtension('feedback-sent', { entryId: historyId });
 
         if (action === 'dismiss') {
           if (signature) {
@@ -655,9 +895,7 @@
         return false;
       } catch (error) {
         console.error('Failed to send feedback:', error);
-        button.disabled = false;
-        button.textContent = 'Retry';
-        return false;
+        return queueReport(error?.message ?? 'Request failed.');
       }
     };
 
@@ -960,6 +1198,7 @@
 
   ensureStyles();
   const { threshold, highlightStyle } = await loadSettings();
+  await initializePendingFeedback();
 
   const initialTargets = new Set();
   collectTargetsFromNode(document.body, initialTargets);
