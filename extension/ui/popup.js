@@ -1,9 +1,8 @@
+import { CONFIG } from '../config.js';
+
 document.addEventListener('DOMContentLoaded', () => {
-  const API_ENDPOINTS = ['https://localhost:5000/predict', 'http://localhost:5000/predict'];
-  const STORAGE_KEYS = {
-    pendingReports: 'debPendingReports',
-    feedbackHistory: 'debFeedbackHistory'
-  };
+  const API_ENDPOINTS = CONFIG.API_BASES.map((base) => `${base}/predict`);
+  const STORAGE_KEYS = CONFIG.STORAGE_KEYS;
   const scanButton = document.getElementById('scanButton');
   const analyzeButton = document.getElementById('analyzeButton');
   const analysisInput = document.getElementById('analysisInput');
@@ -320,7 +319,8 @@ document.addEventListener('DOMContentLoaded', () => {
           const response = await fetch(endpoint, {
             method: 'POST',
             headers: {
-              'Content-Type': 'application/json'
+              'Content-Type': 'application/json',
+              'X-API-Key': CONFIG.API_KEY
             },
             body: JSON.stringify({ text })
           });

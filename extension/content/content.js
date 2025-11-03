@@ -1,44 +1,34 @@
 (async () => {
-  const API_BASES = [
-    'https://localhost:5000',
-    ...(window.location.protocol !== 'https:' ? ['http://localhost:5000'] : [])
-  ];
-  const DEFAULT_THRESHOLD = 0.8;
-  const TEXT_SELECTORS = [
-    'div[data-testid="tweetText"]',
-    'div[role="textbox"]',
-    'div[contenteditable="true"]',
-    'p',
-    'blockquote',
-    'li',
-    'span'
-  ];
-  const PRIMARY_TEXT_SELECTOR = TEXT_SELECTORS[0];
-  const TARGET_SELECTORS = TEXT_SELECTORS.join(', ');
-  const SOCIAL_BLOCK_SELECTORS = ['article', '[data-testid="tweet"]', '[role="article"]', '[role="gridcell"]', '[role="listitem"]'];
-  const BASE_SCAN_SELECTOR = `${SOCIAL_BLOCK_SELECTORS.join(', ')}, ${TARGET_SELECTORS}`;
-  const MIN_TEXT_LENGTH = 5;
-  const PROCESSED_FLAG = 'processed';
-  const DISMISSED_FLAG = 'dismissed';
-  const STYLE_ID = 'deb-hate-style';
-  const HIGHLIGHT_CLASS = 'deb-hate-highlight';
-  const TOOLTIP_CLASS = 'deb-hate-tooltip';
-  const TOOLTIP_META_CLASS = 'deb-hate-tooltip__meta';
-  const TOOLTIP_BADGE_CLASS = 'deb-hate-tooltip__badge';
-  const TOOLTIP_SCORE_CLASS = 'deb-hate-tooltip__score';
-  const TOOLTIP_ACTIONS_CLASS = 'deb-hate-tooltip__actions';
-  const TOOLTIP_BUTTON_CLASS = 'deb-hate-tooltip__btn';
-  const INLINE_HIGHLIGHT_CLASS = 'deb-hate-inline';
-  const HIGHLIGHT_STYLE_OPTIONS = ['highlight', 'blur', 'redact'];
-  const DEFAULT_STYLE = 'highlight';
-  const FEEDBACK_PREFIX = '[DeBERTa Detector]';
-  const STORAGE_KEYS = {
-    pendingReports: 'debPendingReports',
-    feedbackHistory: 'debFeedbackHistory'
-  };
-  const MAX_FEEDBACK_HISTORY = 50;
-  const FEEDBACK_RETRY_ATTEMPTS = 3;
-  const FEEDBACK_RETRY_DELAYS = [0, 1000, 3000];
+  const { CONFIG } = await import(chrome.runtime.getURL('extension/config.js'));
+  const {
+    API_KEY,
+    API_BASES,
+    DEFAULT_THRESHOLD,
+    TEXT_SELECTORS,
+    PRIMARY_TEXT_SELECTOR,
+    TARGET_SELECTORS,
+    SOCIAL_BLOCK_SELECTORS,
+    BASE_SCAN_SELECTOR,
+    MIN_TEXT_LENGTH,
+    PROCESSED_FLAG,
+    DISMISSED_FLAG,
+    STYLE_ID,
+    HIGHLIGHT_CLASS,
+    TOOLTIP_CLASS,
+    TOOLTIP_META_CLASS,
+    TOOLTIP_BADGE_CLASS,
+    TOOLTIP_SCORE_CLASS,
+    TOOLTIP_ACTIONS_CLASS,
+    TOOLTIP_BUTTON_CLASS,
+    INLINE_HIGHLIGHT_CLASS,
+    HIGHLIGHT_STYLE_OPTIONS,
+    DEFAULT_STYLE,
+    FEEDBACK_PREFIX,
+    STORAGE_KEYS,
+    MAX_FEEDBACK_HISTORY,
+    FEEDBACK_RETRY_ATTEMPTS,
+    FEEDBACK_RETRY_DELAYS
+  } = CONFIG;
   const storageLocal = chrome?.storage?.local ?? null;
 
   const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -654,7 +644,8 @@
         const response = await fetch(endpoint, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'X-API-Key': API_KEY
           },
           body: JSON.stringify(payload)
         });

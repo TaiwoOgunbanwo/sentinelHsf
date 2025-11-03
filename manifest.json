@@ -15,7 +15,8 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "extension/content/content.js"
+        "extension/content/content.js",
+        "extension/config.js"
       ],
       "matches": [
         "<all_urls>"
