@@ -18,7 +18,8 @@
       "resources": [
         "extension/content/content.js",
         "extension/config.js",
-        "extension/content/feedback.js"
+        "extension/content/feedback.js",
+        "extension/content/dom.js"
       ],
       "matches": [
         "<all_urls>"
