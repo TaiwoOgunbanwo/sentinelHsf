@@ -316,12 +316,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
       for (const endpoint of API_ENDPOINTS) {
         try {
+          const headers = {
+            'Content-Type': 'application/json'
+          };
+          if (CONFIG.API_KEY) {
+            headers['X-API-Key'] = CONFIG.API_KEY;
+          }
           const response = await fetch(endpoint, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-API-Key': CONFIG.API_KEY
-            },
+            headers,
             body: JSON.stringify({ text })
           });
 

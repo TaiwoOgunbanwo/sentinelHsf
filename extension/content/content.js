@@ -640,13 +640,16 @@
 
     for (const base of API_BASES) {
       const endpoint = `${base}${path}`;
+      const headers = {
+        'Content-Type': 'application/json'
+      };
+      if (API_KEY) {
+        headers['X-API-Key'] = API_KEY;
+      }
       try {
         const response = await fetch(endpoint, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-API-Key': API_KEY
-          },
+          headers,
           body: JSON.stringify(payload)
         });
 
