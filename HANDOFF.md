@@ -13,7 +13,6 @@
 
 - Auto-scan requires host permissions and currently injects via service worker once granted—verify UX messaging remains clear.
 - No automated tests; manual verification only.
-- No automated tests; manual verification only.
 - UI polish: ensure control pills don’t overflow on very narrow layouts and that grouped blur/redact controls adapt to extremely long snippets.
 
 ## Immediate Next Steps
@@ -67,5 +66,6 @@
 - If mkcert certificates are not supplied, trust `~/.finalextension/localhost-cert.pem` manually (Keychain → Always Trust) or Chrome will flag `https://localhost:5000` as insecure and block requests.
 - Feedback queue + history persist in `chrome.storage.local` under keys `debPendingReports` and `debFeedbackHistory`; flushes trigger automatically when connectivity returns.
 - Auto-scan state is stored in `chrome.storage.sync` (`autoScanEnabled`) and mirrored by the background service worker.
+- Scripts: `scripts/setup-cert.sh` provisions mkcert certs; `scripts/dev-server.sh` wraps setup and launches the backend in one step.
 - When editing `extension/content/content.js`, prefer modularization soon—file is large but the current structure relies on globals.
 - Keep README/HANDOFF in sync with dependency or workflow changes.

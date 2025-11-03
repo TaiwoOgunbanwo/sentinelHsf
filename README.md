@@ -48,6 +48,13 @@ See `backend/requirements.txt` for the exact Python packages (currently unpinned
 
 1. **Backend**
    ```bash
+   ./scripts/dev-server.sh
+   ```
+   - Creates a Python virtualenv (`.venv/`), installs dependencies, provisions trusted HTTPS certs via `mkcert`, and starts the Flask server on `https://localhost:5000`.
+   - Run this once per session; it will reuse the existing certificates and virtualenv on subsequent calls.
+
+   **Manual alternative**
+   ```bash
    cd backend
    # Optional: point to mkcert-generated certs
    # export SENTINEL_CERT_FILE="$HOME/.finalextension/mkcert/localhost.pem"
@@ -64,6 +71,7 @@ See `backend/requirements.txt` for the exact Python packages (currently unpinned
    - `npm install` (future build scripts TBD).
    - Load the repository root as an unpacked extension in `chrome://extensions`.
    - Popup slider controls sensitivity (`chrome.storage.sync`), radio buttons switch highlight style, scan button triggers analysis, and the auto-scan toggle requests host permissions the first time you enable it.
+   - For a zero-click install, build a packaged zip (coming soon) or load the `extension/` directory directly during development.
 
 3. **Feedback**
    - Inline “Not hate?” / “Flag” controls POST to `/report`, disable during submission, queue failed attempts for retry, and remove highlights when dismissals succeed.

@@ -10,6 +10,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const sensitivitySlider = document.getElementById('popupSensitivity');
   const sensitivityValue = document.getElementById('sensitivityValue');
   const pageStatus = document.getElementById('pageStatus');
+  const apiStatusIndicator = document.getElementById('apiStatusIndicator');
+  const apiStatusText = document.getElementById('apiStatusText');
   const highlightInputs = Array.from(document.querySelectorAll('input[name="popupHighlightStyle"]'));
   const historyList = document.getElementById('feedbackHistoryList');
   const pendingCountBadge = document.getElementById('pendingCount');
@@ -36,6 +38,23 @@ document.addEventListener('DOMContentLoaded', () => {
           pageStatus.textContent = '';
         }
       }, clearAfter);
+    }
+  };
+
+  const setAPIStatus = (state, label) => {
+    if (!apiStatusIndicator || !apiStatusText) {
+      return;
+    }
+    apiStatusIndicator.classList.remove('status-bar__dot--ok', 'status-bar__dot--working', 'status-bar__dot--error');
+    if (state === 'ok') {
+      apiStatusIndicator.classList.add('status-bar__dot--ok');
+    } else if (state === 'working') {
+      apiStatusIndicator.classList.add('status-bar__dot--working');
+    } else if (state === 'error') {
+      apiStatusIndicator.classList.add('status-bar__dot--error');
+    }
+    if (label) {
+      apiStatusText.textContent = label;
     }
   };
 
@@ -338,6 +357,7 @@ document.addEventListener('DOMContentLoaded', () => {
       switch (message.type) {
         case 'scan-start':
           setStatus('Scanning page…');
+          setAPIStatus('working', 'Scanning…');
           break;
         case 'scan-progress': {
           const active = message.detail?.active ?? 0;
@@ -348,9 +368,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         case 'scan-complete':
           setStatus('Scan complete.', { clearAfter: 2000 });
+          setAPIStatus('ok', 'Scan complete');
           break;
         case 'scan-error':
           setStatus(`Scan failed: ${message.detail?.message ?? 'See console.'}`);
+          setAPIStatus('error', 'Scan failed');
           break;
         case 'feedback-history-updated':
           loadFeedbackMeta();
@@ -385,6 +407,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       analysisResult.textContent = 'Analyzing...';
+      setAPIStatus('working', 'Analyzing…');
 
       let lastError;
 
@@ -411,6 +434,7 @@ document.addEventListener('DOMContentLoaded', () => {
           analysisResult.textContent = result?.label
             ? `${result.label} (${score})`
             : 'No label returned.';
+          setAPIStatus('ok', 'Analysis OK');
           return;
         } catch (error) {
           lastError = error;
@@ -423,9 +447,11 @@ document.addEventListener('DOMContentLoaded', () => {
         lastError && lastError.message && lastError.message.includes('ERR_CERT')
           ? 'Certificate not trusted. Open https://localhost:5000 once to proceed.'
           : 'Analysis failed. Check console.';
+      setAPIStatus('error', 'Analysis failed');
     });
   }
 
   loadSettings();
   loadFeedbackMeta();
+  setAPIStatus('idle', 'Ready');
 });

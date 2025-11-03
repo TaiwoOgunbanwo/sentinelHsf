@@ -4,7 +4,7 @@
 Root holds the manifest plus the domain-specific docs (`README.md`, `AGENTS.md`, `HANDOFF.md`). The Chrome extension lives under `extension/` with `content/` for injected scripts, `ui/` for popup/options surfaces, and `background.js` for the service worker that drives auto-scan. The Flask API sits in `backend/` (`backend/app.py`, `backend/requirements.txt`) and now writes feedback into `backend/reports.db`; it reuses TLS cert/key files under `~/.finalextension/`. Screenshots and generated artifacts stay out of git via `.gitignore`.
 
 ## Build, Test, and Development Commands
-Install extension deps with `npm install`; backend deps with `pip install -r backend/requirements.txt` (installs Flask-CORS, pyOpenSSL, transformers, optimum[onnxruntime]; PyTorch is optional for GPU execution). Build via `npm run build`. For iterative work run `npm run dev` and `npx web-ext run --source-dir dist`. Before starting the API, prefer generating trusted localhost certs with `mkcert`:
+Install extension deps with `npm install`; backend deps with `pip install -r backend/requirements.txt` (installs Flask-CORS, pyOpenSSL, transformers, optimum[onnxruntime]; PyTorch is optional for GPU execution). Build via `npm run build`. For iterative work run `npm run dev` and `npx web-ext run --source-dir dist`. Use `./scripts/dev-server.sh` to provision certificates via `mkcert`, create a virtualenv, and launch the backend in a single step. If you need the manual workflow, run:
 
 ```bash
 mkdir -p ~/.finalextension/mkcert

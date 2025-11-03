@@ -202,10 +202,38 @@
         height: 16px;
         cursor: pointer;
       }
+      .status-bar {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: #1f2937;
+        margin-bottom: 10px;
+      }
+      .status-bar__dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #d1d5db;
+        box-shadow: 0 0 0 1px rgba(55, 65, 81, 0.2);
+      }
+      .status-bar__dot--ok {
+        background: #10b981;
+      }
+      .status-bar__dot--working {
+        background: #3b82f6;
+      }
+      .status-bar__dot--error {
+        background: #ef4444;
+      }
     </style>
   </head>
   <body>
     <h3>Hate Speech Detector</h3>
+    <div class="status-bar" aria-live="polite">
+      <span id="apiStatusIndicator" class="status-bar__dot" aria-hidden="true"></span>
+      <span id="apiStatusText">Ready</span>
+    </div>
     <textarea
       id="analysisInput"
       placeholder="Paste text here to analyze..."
