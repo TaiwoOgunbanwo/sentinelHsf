@@ -33,6 +33,8 @@ See `backend/requirements.txt` for the exact Python packages (currently unpinned
    ```
    - Generates `backend/reports.db` and self-signed certs under `~/.finalextension/`.
    - Serves `https://localhost:5000/predict` (accept the cert in Chrome). HTTP is available as a fallback for non-HTTPS pages.
+   - **Trust the cert once**: open `~/.finalextension/localhost-cert.pem` in Keychain Access, set “When using this certificate” to “Always Trust”, then restart Chrome. Without this step the browser will keep showing “Not Secure” warnings and block requests on HTTPS pages.
+   - Alternative: generate a trusted dev cert with [`mkcert`](https://github.com/FiloSottile/mkcert) and update `cert_file`/`key_file` paths in `backend/app.py`.
 
 2. **Extension**
    - `npm install` (future build scripts TBD).
