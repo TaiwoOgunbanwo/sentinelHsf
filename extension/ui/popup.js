@@ -7,6 +7,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const sensitivitySlider = document.getElementById('popupSensitivity');
   const sensitivityValue = document.getElementById('sensitivityValue');
   const pageStatus = document.getElementById('pageStatus');
+  const highlightInputs = Array.from(document.querySelectorAll('input[name="popupHighlightStyle"]'));
+  const highlightLabels = {
+    highlight: 'Highlight',
+    blur: 'Blur',
+    redact: 'Redact'
+  };
 
   let statusClearHandle;
   const setStatus = (text, { clearAfter = null } = {}) => {
@@ -33,15 +39,25 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
+  const applyHighlightSelection = (value) => {
+    highlightInputs.forEach((input) => {
+      input.checked = input.value === value;
+    });
+  };
+
   const loadSettings = async () => {
     try {
-      const { sensitivity = 0.8 } = await chrome.storage.sync.get('sensitivity');
+      const { sensitivity = 0.8, highlightStyle = 'highlight' } = await chrome.storage.sync.get([
+        'sensitivity',
+        'highlightStyle'
+      ]);
       if (sensitivitySlider) {
         sensitivitySlider.value = sensitivity;
         updateSensitivityValue(sensitivity);
       }
+      applyHighlightSelection(highlightStyle);
     } catch (error) {
-      console.warn('Unable to load sensitivity from storage.', error);
+      console.warn('Unable to load settings from storage.', error);
     }
   };
 
@@ -50,6 +66,17 @@ document.addEventListener('DOMContentLoaded', () => {
       await chrome.storage.sync.set({ sensitivity: parseFloat(value) });
     } catch (error) {
       console.warn('Unable to save sensitivity.', error);
+    }
+  };
+
+  const saveHighlightStyle = async (value) => {
+    try {
+      await chrome.storage.sync.set({ highlightStyle: value });
+      const label = highlightLabels[value] ?? value;
+      setStatus(`Highlight style set to ${label}`, { clearAfter: 1500 });
+    } catch (error) {
+      console.warn('Unable to save highlight style.', error);
+      setStatus('Failed to save highlight style.', { clearAfter: 2000 });
     }
   };
 
@@ -62,6 +89,17 @@ document.addEventListener('DOMContentLoaded', () => {
       const { value } = event.target;
       await saveSensitivity(value);
       setStatus(`Sensitivity set to ${parseFloat(value).toFixed(2)}`, { clearAfter: 1500 });
+    });
+  }
+
+  if (highlightInputs.length) {
+    highlightInputs.forEach((input) => {
+      input.addEventListener('change', async (event) => {
+        if (!event.target.checked) {
+          return;
+        }
+        await saveHighlightStyle(event.target.value);
+      });
     });
   }
 

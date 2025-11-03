@@ -82,6 +82,35 @@
         color: #374151;
         margin-bottom: 12px;
       }
+
+      fieldset {
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        padding: 10px;
+        margin: 0 0 12px;
+        background: #fff;
+      }
+
+      legend {
+        font-size: 12px;
+        font-weight: 600;
+        color: #374151;
+        padding: 0 4px;
+      }
+
+      .radio-group {
+        display: flex;
+        gap: 8px;
+        margin-top: 6px;
+      }
+
+      .radio-group label {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 12px;
+        color: #111827;
+      }
       #pageStatus {
         min-height: 20px;
         font-size: 12px;
@@ -110,6 +139,23 @@
       aria-label="Confidence threshold"
     />
     <div id="sensitivityValue" aria-live="polite"></div>
+    <fieldset>
+      <legend>Highlight Style</legend>
+      <div class="radio-group" role="radiogroup" aria-label="Highlight style">
+        <label>
+          <input type="radio" name="popupHighlightStyle" value="highlight" checked />
+          Highlight
+        </label>
+        <label>
+          <input type="radio" name="popupHighlightStyle" value="blur" />
+          Blur
+        </label>
+        <label>
+          <input type="radio" name="popupHighlightStyle" value="redact" />
+          Redact
+        </label>
+      </div>
+    </fieldset>
     <button id="scanButton">Scan This Page</button>
     <div id="pageStatus" aria-live="polite"></div>
     <a href="options.html" target="_blank" rel="noopener noreferrer">Open Options</a>

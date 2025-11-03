@@ -5,13 +5,13 @@
 - ONNX model (`TaiwoOgun/deberta-v3-hate-speech-onnx`) loads via `optimum.onnxruntime`; GPU optional (torch fallback to CPU).
 - Content script (`extension/content/content.js`) now scopes highlights to canonical text containers, dedupes flagged spans, and renders consolidated blur/redact controls with show/hide + feedback buttons.
 - Backend exposes `/predict`, `/predict/batch`, `/report`; feedback persistence via `backend/reports.db`.
-- Popup includes a live sensitivity slider synced through `chrome.storage.sync`.
+- Popup includes a live sensitivity slider and highlight-style selector synced through `chrome.storage.sync`.
 
 ## Open Challenges / Known Gaps
 - No automated detection yet; user must click “Scan This Page”.
 - No background service worker to coordinate settings/telemetry.
 - No automated tests; manual verification only.
-- UI polish: ensure control pills don’t overflow on very narrow layouts.
+- UI polish: ensure control pills don’t overflow on very narrow layouts and that grouped blur/redact controls adapt to extremely long snippets.
 
 ## Immediate Next Steps
 1. Verify dismissal clears `processedSignatures` so rescans respect new thresholds/styles (adjust if needed).

@@ -662,15 +662,19 @@
     };
 
     if (style !== 'highlight') {
-      const wrapper = wrappers[0];
-      if (!wrapper) {
+      if (!wrappers.length) {
         return;
       }
 
-      wrapper.dataset.revealed = wrapper.dataset.revealed ?? 'false';
-      if (style === 'redact') {
-        wrapper.dataset.redact = makeRedactLabel(snippets.join(' '));
-      }
+      const normalizedSnippets = snippets.length ? snippets : [sanitizeText(el.innerText)];
+
+      wrappers.forEach((wrapper, index) => {
+        const snippet = normalizedSnippets[index] ?? normalizedSnippets[normalizedSnippets.length - 1] ?? '';
+        wrapper.dataset.revealed = wrapper.dataset.revealed ?? 'false';
+        if (style === 'redact') {
+          wrapper.dataset.redact = makeRedactLabel(snippet);
+        }
+      });
 
       const controls = document.createElement('div');
       controls.className = 'deb-hate-inline-controls';
@@ -680,15 +684,18 @@
       const toggleBtn = document.createElement('button');
       toggleBtn.type = 'button';
       toggleBtn.className = 'deb-hate-control';
-      toggleBtn.textContent = wrapper.dataset.revealed === 'true' ? `Hide • ${scoreText}` : `Show • ${scoreText}`;
-      toggleBtn.setAttribute('aria-pressed', wrapper.dataset.revealed === 'true');
+      const isRevealed = wrappers.every((wrapper) => wrapper.dataset.revealed === 'true');
+      toggleBtn.textContent = isRevealed ? `Hide • ${scoreText}` : `Show • ${scoreText}`;
+      toggleBtn.setAttribute('aria-pressed', String(isRevealed));
       toggleBtn.addEventListener('click', (event) => {
         event.preventDefault();
         event.stopPropagation();
-        const revealed = wrapper.dataset.revealed === 'true';
-        wrapper.dataset.revealed = revealed ? 'false' : 'true';
-        toggleBtn.setAttribute('aria-pressed', (!revealed).toString());
-        toggleBtn.textContent = revealed ? `Show • ${scoreText}` : `Hide • ${scoreText}`;
+        const reveal = wrappers.some((wrapper) => wrapper.dataset.revealed !== 'true');
+        wrappers.forEach((wrapper) => {
+          wrapper.dataset.revealed = reveal ? 'true' : 'false';
+        });
+        toggleBtn.setAttribute('aria-pressed', reveal.toString());
+        toggleBtn.textContent = reveal ? `Hide • ${scoreText}` : `Show • ${scoreText}`;
       });
 
       const makeActionButton = (label, action) => {
@@ -708,7 +715,12 @@
       };
 
       controls.append(toggleBtn, makeActionButton('Not hate?', 'dismiss'), makeActionButton('Flag', 'flag'));
-      wrapper.after(controls);
+      const anchor = wrappers[wrappers.length - 1];
+      if (anchor?.parentNode) {
+        anchor.after(controls);
+      } else {
+        el.appendChild(controls);
+      }
       overlayRegistry.set(el, { type: 'block', host: el, wrappers, control: controls, style });
       el.classList.add(HIGHLIGHT_CLASS);
       return;
@@ -860,6 +872,7 @@
           }
         });
         const uniqueFlagged = Array.from(seenRanges.values());
+        uniqueFlagged.sort((a, b) => a.entry.start - b.entry.start);
         state.flagged = uniqueFlagged;
 
         removeHighlight(element);
@@ -869,26 +882,15 @@
         let maxScore = 0;
 
         if (uniqueFlagged.length > 0) {
-          if (style === 'highlight') {
-            uniqueFlagged.forEach(({ entry, result }) => {
-              const wrapper = highlightRange(element, entry.start, entry.end, style);
-              if (!wrapper) {
-                return;
-              }
-              wrappers.push(wrapper);
-              snippets.push(entry.text);
-              maxScore = Math.max(maxScore, Number(result?.score) || 0);
-            });
-          } else {
-            const startOffset = Math.min(...uniqueFlagged.map(({ entry }) => entry.start));
-            const endOffset = Math.max(...uniqueFlagged.map(({ entry }) => entry.end));
-            maxScore = uniqueFlagged.reduce((acc, { result }) => Math.max(acc, Number(result?.score) || 0), 0);
-            const wrapper = highlightRange(element, startOffset, endOffset, style);
-            if (wrapper) {
-              wrappers.push(wrapper);
-              snippets.push(...uniqueFlagged.map(({ entry }) => entry.text));
+          uniqueFlagged.forEach(({ entry, result }) => {
+            const wrapper = highlightRange(element, entry.start, entry.end, style);
+            if (!wrapper) {
+              return;
             }
-          }
+            wrappers.push(wrapper);
+            snippets.push(entry.text);
+            maxScore = Math.max(maxScore, Number(result?.score) || 0);
+          });
         }
 
         if (wrappers.length > 0) {
