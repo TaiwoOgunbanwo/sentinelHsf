@@ -6,27 +6,29 @@
 - ONNX model (`TaiwoOgun/deberta-v3-hate-speech-onnx`) loads via `optimum.onnxruntime`; GPU optional (torch fallback to CPU).
 - Content script (`extension/content/content.js`) now scopes highlights to canonical text containers, dedupes flagged spans, renders consolidated blur/redact controls with show/hide + feedback buttons, and queues feedback with retry/backoff.
 - Backend exposes `/predict`, `/predict/batch`, `/report`; feedback persistence via `backend/reports.db`.
-- Popup includes a live sensitivity slider, highlight-style selector, and a feedback activity panel (pending count + history) backed by `chrome.storage.local`.
+- Popup includes a live sensitivity slider, highlight-style selector, a feedback activity panel (pending count + history) backed by `chrome.storage.local`, and an auto-scan toggle.
+- Background service worker injects the scanner automatically when auto-scan is enabled and host access is granted.
 
 ## Open Challenges / Known Gaps
 
-- No automated detection yet; user must click “Scan This Page”.
-- No background service worker to coordinate settings/telemetry.
+- Auto-scan requires host permissions and currently injects via service worker once granted—verify UX messaging remains clear.
+- No automated tests; manual verification only.
 - No automated tests; manual verification only.
 - UI polish: ensure control pills don’t overflow on very narrow layouts and that grouped blur/redact controls adapt to extremely long snippets.
 
 ## Immediate Next Steps
 
-1. Verify dismissal clears `processedSignatures` so rescans respect new thresholds/styles (adjust if needed).
-2. Begin background worker planning (shared state + telemetry) now that feedback path is live.
-3. Explore automatic scanning toggles (MutationObserver + throttled batches).
+1. Stress-test auto-scan across busy feeds (verify we throttle mutation rescans and avoid double injections).
+2. Capture telemetry/shared state in the background worker (toward future analytics + auto-detection toggles).
+3. Expand permissions UX so users can opt into specific hosts instead of global `<all_urls>`.
 
 ## Paths / Artifacts / Data
 
 - Extension files: `extension/`
   - `content/content.js`
+  - `background.js`
   - `ui/popup.html`, `ui/popup.js`, `ui/options.html`, `ui/options.js`
-  - `manifest.json` (MV3, permissions include http/https localhost)
+  - `manifest.json` (MV3, permissions include http/https localhost + optional all-sites access for auto-scan)
 - Backend: `backend/`
   - `app.py` (Flask API, DB init)
   - `requirements.txt`
@@ -36,6 +38,7 @@
 ## Recent Testing / Logs
 
 - Manual test only: load backend (`python backend/app.py`), accept HTTPS cert in Chrome, load extension, run `Scan This Page`, verify blur controls appear once per post.
+- With auto-scan enabled, navigate to a supported site, refresh, and confirm the scanner injects automatically; disable the toggle and ensure injections stop.
 - Spot-check feedback queue: toggle browser offline, submit “Not hate?” to confirm it queues, then go back online to ensure it flushes.
 - No automated test suite yet; no CI logs available.
 
@@ -63,5 +66,6 @@
   4. Export `SENTINEL_CERT_FILE`/`SENTINEL_KEY_FILE` to those paths before `python backend/app.py`.
 - If mkcert certificates are not supplied, trust `~/.finalextension/localhost-cert.pem` manually (Keychain → Always Trust) or Chrome will flag `https://localhost:5000` as insecure and block requests.
 - Feedback queue + history persist in `chrome.storage.local` under keys `debPendingReports` and `debFeedbackHistory`; flushes trigger automatically when connectivity returns.
+- Auto-scan state is stored in `chrome.storage.sync` (`autoScanEnabled`) and mirrored by the background service worker.
 - When editing `extension/content/content.js`, prefer modularization soon—file is large but the current structure relies on globals.
 - Keep README/HANDOFF in sync with dependency or workflow changes.

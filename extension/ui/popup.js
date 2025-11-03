@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const highlightInputs = Array.from(document.querySelectorAll('input[name="popupHighlightStyle"]'));
   const historyList = document.getElementById('feedbackHistoryList');
   const pendingCountBadge = document.getElementById('pendingCount');
+  const autoScanToggle = document.getElementById('autoScanToggle');
   const highlightLabels = {
     highlight: 'Highlight',
     blur: 'Blur',
@@ -50,17 +51,56 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   };
 
+  const hasHostPermission = () =>
+    new Promise((resolve) => {
+      if (!chrome.permissions?.contains) {
+        resolve(false);
+        return;
+      }
+      chrome.permissions.contains(
+        { origins: ['https://*/*', 'http://*/*'] },
+        (result) => {
+          if (chrome.runtime?.lastError) {
+            console.warn('Permission check failed:', chrome.runtime.lastError);
+            resolve(false);
+            return;
+          }
+          resolve(Boolean(result));
+        }
+      );
+    });
+
+  const requestHostPermission = () =>
+    new Promise((resolve) => {
+      if (!chrome.permissions?.request) {
+        resolve(false);
+        return;
+      }
+      chrome.permissions.request(
+        { origins: ['https://*/*', 'http://*/*'] },
+        (granted) => {
+          if (chrome.runtime?.lastError) {
+            console.warn('Permission request failed:', chrome.runtime.lastError);
+            resolve(false);
+            return;
+          }
+          resolve(Boolean(granted));
+        }
+      );
+    });
+
   const loadSettings = async () => {
     try {
-      const { sensitivity = 0.8, highlightStyle = 'highlight' } = await chrome.storage.sync.get([
-        'sensitivity',
-        'highlightStyle'
-      ]);
+      const { sensitivity = 0.8, highlightStyle = 'highlight', autoScanEnabled = false } =
+        await chrome.storage.sync.get(['sensitivity', 'highlightStyle', 'autoScanEnabled']);
       if (sensitivitySlider) {
         sensitivitySlider.value = sensitivity;
         updateSensitivityValue(sensitivity);
       }
       applyHighlightSelection(highlightStyle);
+      if (autoScanToggle) {
+        autoScanToggle.checked = Boolean(autoScanEnabled);
+      }
     } catch (error) {
       console.warn('Unable to load settings from storage.', error);
     }
@@ -105,6 +145,40 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         await saveHighlightStyle(event.target.value);
       });
+    });
+  }
+
+  if (autoScanToggle) {
+    autoScanToggle.addEventListener('change', async (event) => {
+      const enabled = event.target.checked;
+
+      if (enabled) {
+        const alreadyGranted = await hasHostPermission();
+        let granted = alreadyGranted;
+        if (!alreadyGranted) {
+          granted = await requestHostPermission();
+        }
+        if (!granted) {
+          event.target.checked = false;
+          setStatus('Auto scan requires host access.', { clearAfter: 2500 });
+          return;
+        }
+      }
+
+      chrome.runtime.sendMessage({
+        source: 'deb-popup',
+        type: 'auto-scan-updated',
+        enabled,
+        injectCurrentTab: enabled
+      });
+
+      try {
+        await chrome.storage.sync.set({ autoScanEnabled: enabled });
+      } catch (error) {
+        console.warn('Unable to persist auto-scan toggle.', error);
+      }
+
+      setStatus(enabled ? 'Auto scan enabled.' : 'Auto scan disabled.', { clearAfter: 2000 });
     });
   }
 

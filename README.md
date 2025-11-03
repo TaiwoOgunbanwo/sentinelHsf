@@ -12,6 +12,7 @@ Sentinel is a Chrome manifest v3 extension paired with a secure Flask API that c
 ├── extension/
 │   ├── content/               # content scripts
 │   │   └── content.js
+│   ├── background.js          # service worker (auto-scan orchestration)
 │   └── ui/                    # popup + options surfaces
 │       ├── options.html
 │       ├── options.js
@@ -25,7 +26,8 @@ Sentinel is a Chrome manifest v3 extension paired with a secure Flask API that c
 
 - **Chrome extension** (`extension/`):
   - `content/content.js` injects the scanner, batches text into `/predict` or `/predict/batch`, dedupes flagged spans, and renders inline controls.
-  - `ui/popup.*` powers the action popup (manual analysis, scan trigger, sensitivity slider, highlight-style selector, feedback queue/history).
+  - `ui/popup.*` powers the action popup (manual analysis, scan trigger, sensitivity slider, highlight-style selector, feedback queue/history, auto-scan toggle).
+  - `background.js` listens for navigation events and automatically injects the scanner when auto-scan is enabled.
   - `ui/options.*` persists highlight style and threshold settings.
 - **Flask backend** (`backend/app.py`):
   - Loads `TaiwoOgun/deberta-v3-hate-speech-onnx` via `optimum.onnxruntime`.
@@ -61,7 +63,7 @@ See `backend/requirements.txt` for the exact Python packages (currently unpinned
 2. **Extension**
    - `npm install` (future build scripts TBD).
    - Load the repository root as an unpacked extension in `chrome://extensions`.
-   - Popup slider controls sensitivity (`chrome.storage.sync`), radio buttons switch highlight style, and the scan button triggers analysis.
+   - Popup slider controls sensitivity (`chrome.storage.sync`), radio buttons switch highlight style, scan button triggers analysis, and the auto-scan toggle requests host permissions the first time you enable it.
 
 3. **Feedback**
    - Inline “Not hate?” / “Flag” controls POST to `/report`, disable during submission, queue failed attempts for retry, and remove highlights when dismissals succeed.
@@ -75,6 +77,7 @@ See `backend/requirements.txt` for the exact Python packages (currently unpinned
 - Added a sensitivity slider to the popup; both popup and options share `chrome.storage` values.
 - Added highlight-style controls directly to the popup for quick adjustments (options page remains available).
 - Hardened the feedback path with retry/backoff, offline queuing (via `chrome.storage.local`), and a popup audit history.
+- Added an optional auto-scan mode (service worker + popup toggle) that injects the scanner automatically after host access is granted.
 - Hardened backend imports: optional torch, friendly errors when dependencies are missing.
 
 ## Limitations & Next Steps

@@ -1,3 +1,7 @@
+if (window.__sentinelScannerActive) {
+  console.info('[Sentinel] scanner already running on this page.');
+} else {
+  window.__sentinelScannerActive = true;
 (async () => {
   const { CONFIG } = await import(chrome.runtime.getURL('extension/config.js'));
   const {
@@ -1227,3 +1231,4 @@
   emitEvent('deb-scan-complete', { active: activeBatchCount });
   notifyExtension('scan-complete', { active: activeBatchCount });
 })();
+}
