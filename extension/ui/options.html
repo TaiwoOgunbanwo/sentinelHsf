@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Detector Settings</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 24px;
+        color: #222;
+        background-color: #f9f9f9;
+      }
+
+      h2 {
+        margin-top: 0;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+      }
+
+      input[type='number'] {
+        width: 120px;
+        padding: 6px;
+        margin-bottom: 12px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+      }
+
+      fieldset {
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        padding: 12px;
+        margin-bottom: 16px;
+        background-color: #fff;
+      }
+
+      legend {
+        font-weight: 600;
+        padding: 0 6px;
+      }
+
+      .radio-group {
+        display: flex;
+        gap: 16px;
+        margin-top: 8px;
+      }
+
+      .radio-group label {
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin: 0;
+      }
+
+      button {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        background-color: #007bff;
+        color: white;
+        cursor: pointer;
+      }
+
+      button:hover,
+      button:focus {
+        background-color: #0056b3;
+      }
+
+      #status {
+        margin-top: 12px;
+        font-size: 14px;
+        min-height: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Detector Settings</h2>
+    <label for="sensitivity">Confidence Threshold (0.5 - 1.0)</label>
+    <input
+      type="number"
+      id="sensitivity"
+      min="0.5"
+      max="1.0"
+      step="0.05"
+      value="0.8"
+    />
+
+    <fieldset>
+      <legend>Highlight Style</legend>
+      <div class="radio-group" role="radiogroup" aria-labelledby="style-label">
+        <label>
+          <input type="radio" name="highlightStyle" value="highlight" checked />
+          Highlight
+        </label>
+        <label>
+          <input type="radio" name="highlightStyle" value="blur" />
+          Blur
+        </label>
+        <label>
+          <input type="radio" name="highlightStyle" value="redact" />
+          Redact
+        </label>
+      </div>
+    </fieldset>
+
+    <button id="save">Save</button>
+    <div id="status" aria-live="polite"></div>
+    <script src="options.js"></script>
+  </body>
+</html>

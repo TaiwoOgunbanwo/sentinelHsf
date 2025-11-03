@@ -2,16 +2,35 @@
 
 Sentinel is a Chrome manifest v3 extension paired with a secure Flask API that classifies in-page text for hate speech using a DeBERTa ONNX model. It was created as part of a dissertation project and focuses on fast highlighting, human review controls, and feedback capture.
 
-## Architecture
+## Architecture & Layout
 
-- **Chrome extension** (`popup.html/js`, `options.html/js`, `content.js`)
-  - Injects a scanner that batches visible text into `/predict` and `/predict/batch`.
-  - Provides inline controls (show/hide, “Not hate?”, “Flag”) for blur/redact modes.
-  - Offers a popup for manual analysis, sensitivity tuning, and scan status.
-- **Flask backend** (`backend/app.py`)
+```
+.
+├── backend/                   # Flask API + SQLite feedback store
+│   ├── app.py
+│   └── requirements.txt
+├── extension/
+│   ├── content/               # content scripts
+│   │   └── content.js
+│   └── ui/                    # popup + options surfaces
+│       ├── options.html
+│       ├── options.js
+│       ├── popup.html
+│       └── popup.js
+├── manifest.json              # Chrome MV3 manifest
+├── AGENTS.md                  # contributor playbook
+├── HANDOFF.md                 # context for future maintainers
+└── README.md
+```
+
+- **Chrome extension** (`extension/`):
+  - `content/content.js` injects the scanner, batches text into `/predict` or `/predict/batch`, and renders inline controls.
+  - `ui/popup.*` powers the action popup (manual analysis, scan trigger, sensitivity slider).
+  - `ui/options.*` persists highlight style and threshold settings.
+- **Flask backend** (`backend/app.py`):
   - Loads `TaiwoOgun/deberta-v3-hate-speech-onnx` via `optimum.onnxruntime`.
   - Exposes `/predict`, `/predict/batch`, and `/report`.
-  - Persists reviewer feedback to `backend/reports.db` (SQLite) and serves over HTTPS with a self-signed cert (via `pyOpenSSL`).
+  - Persists reviewer feedback to `backend/reports.db` (SQLite) and serves HTTPS using a self-signed cert (generated with `pyOpenSSL`).
 
 ## Stack
 
@@ -38,7 +57,7 @@ See `backend/requirements.txt` for the exact Python packages (currently unpinned
 
 2. **Extension**
    - `npm install` (future build scripts TBD).
-   - Load the `FinalExtension/` directory as an unpacked extension in `chrome://extensions`.
+   - Load the repository root as an unpacked extension in `chrome://extensions`.
    - Popup slider controls sensitivity (`chrome.storage.sync`) and the scan button triggers analysis.
 
 3. **Feedback**
@@ -58,3 +77,8 @@ See `backend/requirements.txt` for the exact Python packages (currently unpinned
 - Feedback path is wired; consider retry UI/backoff for repeated failures.
 - No automated tests yet—manual verification recommended after each change.
 - Background service worker pending for shared state, telemetry, and eventual automatic scanning.
+
+---
+
+- See [CONTRIBUTING.md](CONTRIBUTING.md) for development workflow and commit conventions.
+- See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for expected behavior.

@@ -3,7 +3,7 @@
 ## Current Status
 - Chrome MV3 extension + Flask backend run locally (trust `~/.finalextension/localhost-cert.pem` in Keychain to silence HTTPS warnings).
 - ONNX model (`TaiwoOgun/deberta-v3-hate-speech-onnx`) loads via `optimum.onnxruntime`; GPU optional (torch fallback to CPU).
- - Content script now scopes highlights to canonical text containers, dedupes flagged spans, and renders consolidated blur/redact controls with show/hide + feedback buttons.
+- Content script (`extension/content/content.js`) now scopes highlights to canonical text containers, dedupes flagged spans, and renders consolidated blur/redact controls with show/hide + feedback buttons.
 - Backend exposes `/predict`, `/predict/batch`, `/report`; feedback persistence via `backend/reports.db`.
 - Popup includes a live sensitivity slider synced through `chrome.storage.sync`.
 
@@ -19,8 +19,9 @@
 3. Explore automatic scanning toggles (MutationObserver + throttled batches).
 
 ## Paths / Artifacts / Data
-- Extension root: `FinalExtension/`
-  - `popup.html`, `popup.js`, `options.html`, `options.js`, `content.js`
+- Extension files: `extension/`
+  - `content/content.js`
+  - `ui/popup.html`, `ui/popup.js`, `ui/options.html`, `ui/options.js`
   - `manifest.json` (MV3, permissions include http/https localhost)
 - Backend: `backend/`
   - `app.py` (Flask API, DB init)
@@ -47,5 +48,5 @@
 ## Notes
 - Do not delete `backend/reports.db`; it stores feedback history.
 - Trust the generated cert once (Keychain → Always Trust). Without that Chrome will flag `https://localhost:5000` as insecure and block requests.
-- When editing `content.js`, prefer modularization soon—file is large but the current structure relies on globals.
+- When editing `extension/content/content.js`, prefer modularization soon—file is large but the current structure relies on globals.
 - Keep README/HANDOFF in sync with dependency or workflow changes.

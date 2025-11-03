@@ -15,7 +15,7 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "content.js"
+        "extension/content/content.js"
       ],
       "matches": [
         "<all_urls>"
@@ -23,7 +23,7 @@
     }
   ],
   "action": {
-    "default_popup": "popup.html"
+    "default_popup": "extension/ui/popup.html"
   },
-  "options_page": "options.html"
+  "options_page": "extension/ui/options.html"
 }
