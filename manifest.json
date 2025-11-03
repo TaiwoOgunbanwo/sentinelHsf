@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "DeBERTa Hate Speech Detector",
+  "version": "1.0",
+  "description": "Uses a fine-tuned DeBERTa model to detect and highlight toxic language on web pages.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://localhost:5000/*",
+    "http://localhost:5000/*"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "content.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "options_page": "options.html"
+}

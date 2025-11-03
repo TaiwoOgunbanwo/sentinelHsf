@@ -1,0 +1,4 @@
+backend/cert.pem
+backend/key.pem
+backend/reports.db
+*.pem
