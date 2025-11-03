@@ -2,6 +2,7 @@ import os
 import sqlite3
 import ssl
 import importlib
+import sys
 from flask import Flask, request, jsonify
 
 try:
@@ -204,6 +205,18 @@ if __name__ == "__main__":
         response.headers["Access-Control-Allow-Headers"] = "Content-Type"
         response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
         return response
+
+    custom_cert = os.getenv("SENTINEL_CERT_FILE")
+    custom_key = os.getenv("SENTINEL_KEY_FILE")
+    if custom_cert and custom_key and os.path.exists(custom_cert) and os.path.exists(custom_key):
+        ssl_context = (custom_cert, custom_key)
+        print(
+            f"Using SSL certificate supplied via environment:\n"
+            f"  SENTINEL_CERT_FILE={custom_cert}\n"
+            f"  SENTINEL_KEY_FILE={custom_key}"
+        )
+        app.run(debug=True, host="0.0.0.0", port=5000, ssl_context=ssl_context)
+        sys.exit(0)
 
     print("Creating self-signed SSL certificate...")
     try:
