@@ -7,6 +7,7 @@
 - Content script (`extension/content/content.js`) now scopes highlights to canonical text containers, dedupes flagged spans, renders consolidated blur/redact controls with show/hide + feedback buttons, and queues feedback with retry/backoff.
 - Backend exposes `/predict`, `/predict/batch`, `/report`; feedback persistence via `backend/reports.db`.
 - Popup includes a live sensitivity slider, highlight-style selector, a feedback activity panel (pending count + history) backed by `chrome.storage.local`, and an auto-scan toggle.
+- Content helpers are modularised (`extension/content/feedback.js`, `extension/content/dom.js`) to keep the bootstrap file slim.
 - Background service worker injects the scanner automatically when auto-scan is enabled and host access is granted.
 
 ## Open Challenges / Known Gaps
@@ -67,5 +68,5 @@
 - Feedback queue + history persist in `chrome.storage.local` under keys `debPendingReports` and `debFeedbackHistory`; flushes trigger automatically when connectivity returns.
 - Auto-scan state is stored in `chrome.storage.sync` (`autoScanEnabled`) and mirrored by the background service worker.
 - Scripts: `scripts/setup-cert.sh` provisions mkcert certs; `scripts/dev-server.sh` wraps setup and launches the backend in one step.
-- When editing `extension/content/content.js`, prefer modularization soon—file is large but the current structure relies on globals.
+- When editing `extension/content/content.js`, note that key helpers now live in `extension/content/feedback.js` and `extension/content/dom.js`; keep new logic modular.
 - Keep README/HANDOFF in sync with dependency or workflow changes.

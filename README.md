@@ -10,8 +10,10 @@ Sentinel is a Chrome manifest v3 extension paired with a secure Flask API that c
 │   ├── app.py
 │   └── requirements.txt
 ├── extension/
-│   ├── content/               # content scripts
-│   │   └── content.js
+│   ├── content/               # content scripts & modules
+│   │   ├── content.js         # bootstrap (imports helpers)
+│   │   ├── feedback.js        # feedback queue/history manager
+│   │   └── dom.js             # DOM helpers (sentences, highlights, signatures)
 │   ├── background.js          # service worker (auto-scan orchestration)
 │   └── ui/                    # popup + options surfaces
 │       ├── options.html
@@ -25,7 +27,9 @@ Sentinel is a Chrome manifest v3 extension paired with a secure Flask API that c
 ```
 
 - **Chrome extension** (`extension/`):
-  - `content/content.js` injects the scanner, batches text into `/predict` or `/predict/batch`, dedupes flagged spans, and renders inline controls.
+  - `content/content.js` bootstraps the scanner, wiring in helper modules and coordinating fetches.
+  - `content/feedback.js` manages offline queueing, retries, and history logging.
+  - `content/dom.js` owns DOM traversal, signature building, sentence splitting, and highlight range utilities.
   - `ui/popup.*` powers the action popup (manual analysis, scan trigger, sensitivity slider, highlight-style selector, feedback queue/history, auto-scan toggle).
   - `background.js` listens for navigation events and automatically injects the scanner when auto-scan is enabled.
   - `ui/options.*` persists highlight style and threshold settings.
