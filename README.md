@@ -102,7 +102,7 @@ npm install
 npm test
 ```
 
-The current tests cover `extension/content/dom.js` helpers (sentence splitting, highlight wrapping, signature generation). Add new specs alongside `__tests__/dom.test.js` as the codebase evolves.
+The current tests cover `extension/content/dom.js` helpers (sentence splitting, highlight wrapping, signature generation). Add new specs alongside `tests/dom.test.js` as the codebase evolves.
 
 ## Packaging the Extension
 
