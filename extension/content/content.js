@@ -200,8 +200,18 @@ const createOverlayManagerFallback = ({
   };
 
   const updateTooltipPosition = (host, container) => {
+    if (!host || !container) {
+      if (host) {
+        overlayRegistry.delete(host);
+      }
+      return;
+    }
     if (!document.body.contains(host)) {
-      container.remove();
+      try {
+        container.remove();
+      } catch (_error) {
+        // container may already be gone
+      }
       overlayRegistry.delete(host);
       return;
     }
@@ -258,7 +268,12 @@ const createOverlayManagerFallback = ({
     overlayUpdateQueued = true;
     requestAnimationFrame(() => {
       overlayUpdateQueued = false;
-      overlayRegistry.forEach(({ container, host }) => updateTooltipPosition(host, container));
+      overlayRegistry.forEach((entry) => {
+        if (!entry || entry.type !== 'inline' || !entry.container || !entry.host) {
+          return;
+        }
+        updateTooltipPosition(entry.host, entry.container);
+      });
       if (overlayRegistry.size === 0 && overlayListenersActive) {
         window.removeEventListener('scroll', scheduleOverlayUpdate);
         window.removeEventListener('resize', scheduleOverlayUpdate);
