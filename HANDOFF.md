@@ -21,6 +21,7 @@
 - Scripts (`setup-cert.sh`, `dev-server.sh`) automate mkcert provisioning, virtualenv setup, and backend launch.
 - TLS story improved: SAN-enabled self-signed certs, mkcert workflow, and optional `SENTINEL_HTTP_ONLY=1` for plain HTTP demos.
 - Documentation (README, AGENTS, this HANDOFF) now captures cert workflows, feature breadth, and testing expectations for examiners.
+- Convenience tooling: `scripts/dev-http.sh` boots the backend in HTTP-only mode, while `scripts/package-extension.sh` emits `dist/sentinel-extension.zip` for easy unpacked installs.
 
 ## Open Challenges / Known Gaps
 

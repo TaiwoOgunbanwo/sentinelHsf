@@ -37,6 +37,7 @@ Verify the feedback queue by simulating offline mode, ensuring reports are queue
 - TLS tooling: SAN-enabled self-signed certs, mkcert helper scripts, and `SENTINEL_HTTP_ONLY=1` escape hatch for quick HTTP testing.
 - Backend hardening: dependency guards with actionable messages, CORS-friendly OPTIONS handling, batch endpoint sanity checks, and `/report` validation.
 - Docs + manifest kept in sync (host permissions, resource lists) so examiners can review capabilities quickly.
+- Convenience scripts: `scripts/dev-http.sh` runs the backend in HTTP-only mode for quick demos, and `scripts/package-extension.sh` produces `dist/sentinel-extension.zip` for drag-and-drop loading in Chromium browsers.
 
 ## Commit & Pull Request Guidelines
 History remains clean—adhere to Conventional Commits (`feat:`, `fix:`, `chore:`) for traceability. Each PR must include: linked issue, summary of extension and API changes, verification steps (`npm run build`, `npx web-ext lint`, `python backend/app.py`, relevant tests), and screenshots or gifs for UI updates. Confirm host permission changes (e.g., `http://localhost:5000/*`) in the PR description. Request review only after lint suites and automated tests pass.
