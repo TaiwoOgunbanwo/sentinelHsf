@@ -304,6 +304,10 @@ const createOverlayManager = ({
 
       button.disabled = true;
       button.textContent = action === 'dismiss' ? 'Removing…' : 'Sending…';
+      const registryEntry = overlayRegistry.get(el);
+      if (registryEntry?.control) {
+        registryEntry.control.dataset.feedbackState = 'pending';
+      }
 
       const queueReport = async (message) => {
         const queued = await feedback.queueReport?.({
@@ -320,20 +324,30 @@ const createOverlayManager = ({
             queuedAt: Date.now(),
             lastError: message
           });
-          if (typeof notifyExtension === 'function') {
-            notifyExtension('feedback-queued', { entryId: historyId });
-          }
-          button.textContent = 'Queued';
-          return false;
-        }
-
-        console.error('Failed to queue feedback:', message);
-        button.disabled = false;
-        button.textContent = originalLabel || 'Retry';
         if (typeof notifyExtension === 'function') {
-          notifyExtension('feedback-error', { entryId: historyId, message });
+          notifyExtension('feedback-queued', { entryId: historyId });
+        }
+        button.textContent = 'Queued';
+        const registryEntryQueued = overlayRegistry.get(el);
+        if (registryEntryQueued?.control) {
+          registryEntryQueued.control.dataset.feedbackState = 'queued';
+          registryEntryQueued.control.dataset.feedbackError = message;
         }
         return false;
+      }
+
+      console.error('Failed to queue feedback:', message);
+      button.disabled = false;
+      button.textContent = originalLabel || 'Retry';
+      if (typeof notifyExtension === 'function') {
+        notifyExtension('feedback-error', { entryId: historyId, message });
+      }
+      const registryEntryError = overlayRegistry.get(el);
+      if (registryEntryError?.control) {
+        registryEntryError.control.dataset.feedbackState = 'error';
+        registryEntryError.control.dataset.feedbackError = message;
+      }
+      return false;
       };
 
       if (offline) {
@@ -353,6 +367,12 @@ const createOverlayManager = ({
           notifyExtension('feedback-sent', { entryId: historyId });
         }
 
+        const registryEntrySent = overlayRegistry.get(el);
+        if (registryEntrySent?.control) {
+          registryEntrySent.control.dataset.feedbackState = 'sent';
+          registryEntrySent.control.dataset.feedbackTimestamp = String(Date.now());
+        }
+
         if (action === 'dismiss') {
           if (signature) {
             processedSignatures.delete(signature);
@@ -364,9 +384,15 @@ const createOverlayManager = ({
         }
 
         button.textContent = 'Sent';
+        button.disabled = false;
         return false;
       } catch (error) {
         console.error('Failed to send feedback:', error);
+        const registryEntryFailed = overlayRegistry.get(el);
+        if (registryEntryFailed?.control) {
+          registryEntryFailed.control.dataset.feedbackState = 'error';
+          registryEntryFailed.control.dataset.feedbackError = error?.message ?? 'Request failed.';
+        }
         return queueReport(error?.message ?? 'Request failed.');
       }
     };
@@ -441,7 +467,16 @@ const createOverlayManager = ({
       } else {
         el.appendChild(controls);
       }
-      overlayRegistry.set(el, { type: 'block', host: el, wrappers: wrapperGroups.flat(), control: controls, style });
+      overlayRegistry.set(el, {
+        type: 'block',
+        host: el,
+        wrappers: wrapperGroups.flat(),
+        control: controls,
+        style,
+        meta: {
+          snippetCount: wrapperGroups.length
+        }
+      });
       el.classList.add(classes.highlightClass);
       return;
     }

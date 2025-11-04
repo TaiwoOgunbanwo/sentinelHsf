@@ -35,6 +35,7 @@ Verify the feedback queue by simulating offline mode, ensuring reports are queue
 - Background service worker proxies `/predict`/`/predict/batch`, enabling HTTP fallbacks and avoiding mixed-content errors on HTTPS pages.
 - Auto-scan orchestrator injects the scanner on navigation/activation and honors popup toggles, making demos faster.
 - Auto-scan reliability improvements: background fetch retries, offline detection, and injection failures now raise clear popup notices for examiners.
+- Feedback UX polish: inline buttons signal sent/queued/error states, popup history includes relative timestamps, and entries can be dismissed to keep demo logs tidy.
 - TLS tooling: SAN-enabled self-signed certs, mkcert helper scripts, and `SENTINEL_HTTP_ONLY=1` escape hatch for quick HTTP testing.
 - Backend hardening: dependency guards with actionable messages, CORS-friendly OPTIONS handling, batch endpoint sanity checks, and `/report` validation.
 - Docs + manifest kept in sync (host permissions, resource lists) so examiners can review capabilities quickly.

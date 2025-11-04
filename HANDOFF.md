@@ -10,6 +10,7 @@
 - Content helpers are modularised (`extension/content/feedback.js`, `extension/content/dom.js`, `extension/content/overlay.js`, `extension/config.js`) to keep the bootstrap file slim.
 - Background service worker injects the scanner automatically when auto-scan is enabled, proxies all backend fetches (content scripts talk to it via runtime messages), and therefore sidesteps mixed-content blocks on HTTPS pages.
 - Auto-scan reliability improvements: background fetch retries, offline detection, and injection failures bubble up to the popup so examiners immediately know why a scan stopped.
+- Feedback UX polish: inline buttons now reflect sent/queued/error states, popup history gains relative timestamps, and examiners can dismiss entries once reviewed.
 
 ## Additions & Refinements
 
