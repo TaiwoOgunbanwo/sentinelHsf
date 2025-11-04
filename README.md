@@ -85,8 +85,9 @@ See `backend/requirements.txt` for the exact Python packages (currently unpinned
 2. **Extension**
    - `npm install` (future build scripts TBD).
    - Load the repository root as an unpacked extension in `chrome://extensions`.
-   - Popup slider controls sensitivity (`chrome.storage.sync`), radio buttons switch highlight style, scan button triggers analysis, and the auto-scan toggle requests host permissions the first time you enable it.
-   - For a zero-click install, build a packaged zip (coming soon) or load the `extension/` directory directly during development.
+  - Popup slider controls sensitivity (`chrome.storage.sync`), radio buttons switch highlight style, scan button triggers analysis, and the auto-scan toggle requests host permissions the first time you enable it.
+  - Configure the auto-scan allow list from the options page—auto-scan only injects on domains you list (manual scans still work everywhere).
+  - For a zero-click install, build a packaged zip (coming soon) or load the `extension/` directory directly during development.
 
 3. **Feedback**
    - Inline “Not hate?” / “Flag” controls POST to `/report`, disable during submission, queue failed attempts for retry, and remove highlights when dismissals succeed.
@@ -121,6 +122,7 @@ The archive is written to `dist/sentinel-extension.zip`.
 - Inline blur/redact/highlight wrappers with deduped spans, show/hide toggles, and feedback buttons that hook directly into `/report`.
 - Highlight stability pass: grouped duplicate wrappers by snippet, enforce a single show/hide control per detection, and ensure blur/redact toggles flip all fragments simultaneously for cleaner social-feed demos.
 - Auto-scan reliability: background fetches retry with backoff, offline/failed injections surface to the popup, and manual scans share the improved status messaging for examiners.
+- Auto-scan allow list: users can scope automatic injections to a curated list of domains while manual scans remain unrestricted for spot checks.
 - Feedback UX upgrades: inline controls display sent/queued/error states, timestamps bubble into the popup history, and examiners can now dismiss feedback entries when they no longer need the context.
 - Telemetry/debug panel: popup now shows auto-scan state, last fetch/scan summaries, and recent errors, with a refresh button driven by background telemetry broadcasts.
 - Popup upgrades: manual text analyzer, sensitivity slider, highlight-style radio buttons, feedback history feed, pending-queue badge, auto-scan toggle, and live scan-status indicator.

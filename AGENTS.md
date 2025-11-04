@@ -35,6 +35,7 @@ Verify the feedback queue by simulating offline mode, ensuring reports are queue
 - Background service worker proxies `/predict`/`/predict/batch`, enabling HTTP fallbacks and avoiding mixed-content errors on HTTPS pages.
 - Auto-scan orchestrator injects the scanner on navigation/activation and honors popup toggles, making demos faster.
 - Auto-scan reliability improvements: background fetch retries, offline detection, and injection failures now raise clear popup notices for examiners.
+- Auto-scan allow list: users can scope automatic injections to a curated set of domains via the options page while manual scans remain unrestricted.
 - Feedback UX polish: inline buttons signal sent/queued/error states, popup history includes relative timestamps, and entries can be dismissed to keep demo logs tidy.
 - Telemetry/debug panel surfaces auto-scan state, last fetch/scan summaries, and recent errors directly in the popup for examiners.
 - Jest unit tests cover `extension/content/dom.js`; run via `npm test` after `npm install` to validate helpers.

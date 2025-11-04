@@ -1,5 +1,7 @@
 import { CONFIG } from './config.js';
 
+const { STORAGE_KEYS } = CONFIG;
+
 const AUTO_SCAN_KEY = 'autoScanEnabled';
 const ALLOWED_PROTOCOLS = new Set(['http:', 'https:']);
 const DEFAULT_HTTP_BASES = ['http://localhost:5000'];
@@ -38,18 +40,36 @@ const broadcastTelemetry = () => {
 };
 
 let autoScanEnabled = false;
+let siteList = [];
 
 const readAutoScanSetting = async () => {
   try {
-    const stored = await chrome.storage.sync.get([AUTO_SCAN_KEY]);
+    const stored = await chrome.storage.sync.get([AUTO_SCAN_KEY, STORAGE_KEYS.siteList]);
     autoScanEnabled = Boolean(stored?.[AUTO_SCAN_KEY]);
+    siteList = Array.isArray(stored?.[STORAGE_KEYS.siteList])
+      ? stored[STORAGE_KEYS.siteList].map((item) => item.toLowerCase())
+      : [];
     telemetry.autoScanEnabled = autoScanEnabled;
     broadcastTelemetry();
   } catch (error) {
     console.warn('[Sentinel] Failed to read auto-scan setting.', error);
     autoScanEnabled = false;
+    siteList = [];
     telemetry.autoScanEnabled = false;
     broadcastTelemetry();
+  }
+};
+
+const isAllowedDomain = (tab) => {
+  if (!siteList.length || !tab?.url) {
+    return false;
+  }
+  try {
+    const url = new URL(tab.url);
+    const hostname = (url.hostname || '').toLowerCase();
+    return siteList.some((entry) => hostname === entry || hostname.endsWith(`.${entry}`));
+  } catch (error) {
+    return false;
   }
 };
 
@@ -67,6 +87,15 @@ const isInjectableTab = (tab) => {
 
 const injectScanner = async (tabId) => {
   if (!autoScanEnabled) {
+    return;
+  }
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    if (!isAllowedDomain(tab)) {
+      return;
+    }
+  } catch (error) {
+    console.warn('[Sentinel] Unable to read tab before injection.', error);
     return;
   }
   try {
@@ -93,7 +122,7 @@ const handleTabUpdated = (tabId, changeInfo, tab) => {
   if (!autoScanEnabled || changeInfo.status !== 'complete') {
     return;
   }
-  if (!isInjectableTab(tab)) {
+  if (!isInjectableTab(tab) || !isAllowedDomain(tab)) {
     return;
   }
   injectScanner(tabId);
@@ -105,7 +134,7 @@ const handleTabActivated = async (activeInfo) => {
   }
   try {
     const tab = await chrome.tabs.get(activeInfo.tabId);
-    if (isInjectableTab(tab)) {
+    if (isInjectableTab(tab) && isAllowedDomain(tab)) {
       await injectScanner(tab.id);
     }
   } catch (error) {
@@ -233,7 +262,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (autoScanEnabled && message.injectCurrentTab) {
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         const tab = tabs?.[0];
-        if (tab && isInjectableTab(tab)) {
+        if (tab && isInjectableTab(tab) && isAllowedDomain(tab)) {
           injectScanner(tab.id);
         }
       });
@@ -290,6 +319,26 @@ chrome.runtime.onInstalled.addListener(() => {
 
 chrome.runtime.onStartup.addListener(() => {
   readAutoScanSetting();
+});
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'sync') {
+    return;
+  }
+  let updated = false;
+  if (Object.prototype.hasOwnProperty.call(changes, AUTO_SCAN_KEY)) {
+    autoScanEnabled = Boolean(changes[AUTO_SCAN_KEY]?.newValue);
+    telemetry.autoScanEnabled = autoScanEnabled;
+    updated = true;
+  }
+  if (Object.prototype.hasOwnProperty.call(changes, STORAGE_KEYS.siteList)) {
+    const newSites = changes[STORAGE_KEYS.siteList]?.newValue;
+    siteList = Array.isArray(newSites) ? newSites.map((entry) => entry.toLowerCase()) : [];
+    updated = true;
+  }
+  if (updated) {
+    broadcastTelemetry();
+  }
 });
 
 readAutoScanSetting();

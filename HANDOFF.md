@@ -13,6 +13,7 @@
 - Feedback UX polish: inline buttons now reflect sent/queued/error states, popup history gains relative timestamps, and examiners can dismiss entries once reviewed.
 - Telemetry/debug panel added to the popup showing auto-scan status, last fetch/scan metadata, and recent errors with a manual refresh control.
 - Jest unit tests cover `extension/content/dom.js`; run `npm install && npm test` to validate helper logic before exam sessions.
+- Auto-scan allow list: options page now accepts domain entries and the background worker only auto-injects on those hosts, keeping manual scans available everywhere.
 
 ## Additions & Refinements
 

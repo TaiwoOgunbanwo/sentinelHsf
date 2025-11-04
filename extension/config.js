@@ -36,7 +36,8 @@ export const DEFAULT_STYLE = 'highlight';
 export const FEEDBACK_PREFIX = '[DeBERTa Detector]';
 export const STORAGE_KEYS = {
   pendingReports: 'debPendingReports',
-  feedbackHistory: 'debFeedbackHistory'
+  feedbackHistory: 'debFeedbackHistory',
+  siteList: 'debSiteList'
 };
 export const MAX_FEEDBACK_HISTORY = 50;
 export const FEEDBACK_RETRY_ATTEMPTS = 3;

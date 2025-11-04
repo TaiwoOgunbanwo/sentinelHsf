@@ -108,8 +108,19 @@
       </div>
     </fieldset>
 
+    <fieldset>
+      <legend>Auto-Scan Allow List</legend>
+      <label for="siteList">Enable auto-scan only on these domains (one per line):</label>
+      <textarea
+        id="siteList"
+        rows="6"
+        placeholder="twitter.com&#10;reddit.com"
+        style="width: 100%; resize: vertical; padding: 8px; border-radius: 4px; border: 1px solid #ccc;"
+      ></textarea>
+    </fieldset>
+
     <button id="save">Save</button>
     <div id="status" aria-live="polite"></div>
-    <script src="options.js"></script>
+    <script type="module" src="options.js"></script>
   </body>
 </html>
