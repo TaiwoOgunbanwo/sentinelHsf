@@ -947,6 +947,31 @@ if (window.__sentinelScannerActive) {
       const { threshold, highlightStyle } = await loadSettings();
       await initializePendingFeedback();
 
+      const pendingMutationTargets = new Set();
+      let mutationTimer = null;
+      const MUTATION_DEBOUNCE_MS = 300;
+
+      const flushMutationQueue = () => {
+        mutationTimer = null;
+        if (pendingMutationTargets.size === 0 || abortScanning) {
+          pendingMutationTargets.clear();
+          return;
+        }
+        const targets = new Set(pendingMutationTargets);
+        pendingMutationTargets.clear();
+        scanElements(targets, threshold, highlightStyle).catch((error) =>
+          console.error('[Sentinel] Error scanning queued nodes:', error)
+        );
+      };
+
+      const scheduleMutationScan = (targets) => {
+        targets.forEach((target) => pendingMutationTargets.add(target));
+        if (mutationTimer) {
+          clearTimeout(mutationTimer);
+        }
+        mutationTimer = setTimeout(flushMutationQueue, MUTATION_DEBOUNCE_MS);
+      };
+
       const initialTargets = new Set();
       collectTargetsFromNode(document.body, initialTargets);
       await scanElements(initialTargets, threshold, highlightStyle);
@@ -972,9 +997,7 @@ if (window.__sentinelScannerActive) {
           return;
         }
 
-        scanElements(freshTargets, threshold, highlightStyle).catch((error) =>
-          console.error('[Sentinel] Error scanning new nodes:', error)
-        );
+        scheduleMutationScan(freshTargets);
       });
 
       observer.observe(document.body, { childList: true, subtree: true });

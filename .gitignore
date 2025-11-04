@@ -8,4 +8,7 @@ screenshots/
 *.sqlite
 *.venv/
 .venv/
+node_modules/
+.npm/
+.pnpm-store/
 .DS_Store

@@ -92,6 +92,17 @@ See `backend/requirements.txt` for the exact Python packages (currently unpinned
    - Inline “Not hate?” / “Flag” controls POST to `/report`, disable during submission, queue failed attempts for retry, and remove highlights when dismissals succeed.
    - The popup shows pending feedback count plus a recent history pulled from `chrome.storage.local`.
 
+## Tests
+
+Install dev dependencies and run the Jest suite:
+
+```bash
+npm install
+npm test
+```
+
+The current tests cover `extension/content/dom.js` helpers (sentence splitting, highlight wrapping, signature generation). Add new specs alongside `__tests__/dom.test.js` as the codebase evolves.
+
 ## Packaging the Extension
 
 Generate a ready-to-load ZIP (for `chrome://extensions`) with:

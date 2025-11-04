@@ -12,6 +12,7 @@
 - Auto-scan reliability improvements: background fetch retries, offline detection, and injection failures bubble up to the popup so examiners immediately know why a scan stopped.
 - Feedback UX polish: inline buttons now reflect sent/queued/error states, popup history gains relative timestamps, and examiners can dismiss entries once reviewed.
 - Telemetry/debug panel added to the popup showing auto-scan status, last fetch/scan metadata, and recent errors with a manual refresh control.
+- Jest unit tests cover `extension/content/dom.js`; run `npm install && npm test` to validate helper logic before exam sessions.
 
 ## Additions & Refinements
 
