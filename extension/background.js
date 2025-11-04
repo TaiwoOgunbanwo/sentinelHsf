@@ -27,9 +27,12 @@ const telemetry = {
 
 const notifyClients = (type, detail = {}) => {
   try {
-    chrome.runtime.sendMessage({ source: 'deb-background', type, detail });
+    const result = chrome.runtime.sendMessage({ source: 'deb-background', type, detail });
+    if (result && typeof result.catch === 'function') {
+      result.catch(() => {});
+    }
   } catch (error) {
-    // Ignore missing listeners
+    // Ignore synchronous errors (e.g., during shutdown)
   }
 };
 
