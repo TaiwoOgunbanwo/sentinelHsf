@@ -16,12 +16,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const historyList = document.getElementById('feedbackHistoryList');
   const pendingCountBadge = document.getElementById('pendingCount');
   const autoScanToggle = document.getElementById('autoScanToggle');
-  const debugAutoScan = document.getElementById('debugAutoScan');
-  const debugLastFetch = document.getElementById('debugLastFetch');
-  const debugLastScan = document.getElementById('debugLastScan');
-  const debugLastError = document.getElementById('debugLastError');
-  const debugDetails = document.getElementById('debugDetails');
-  const debugRefreshBtn = document.getElementById('debugRefresh');
   const highlightLabels = {
     highlight: 'Highlight',
     blur: 'Blur',
@@ -29,19 +23,46 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   let statusClearHandle;
+  let persistentStatus = 'Status: Ready to scan';
+  const updateScanButtonState = (autoScanEnabled) => {
+    if (!scanButton) {
+      return;
+    }
+    if (autoScanEnabled) {
+      scanButton.disabled = true;
+      scanButton.textContent = 'Auto-scan is Active';
+      scanButton.classList.add('button--disabled');
+    } else {
+      scanButton.disabled = false;
+      scanButton.textContent = 'Scan This Page';
+      scanButton.classList.remove('button--disabled');
+    }
+  };
+
   const setStatus = (text, { clearAfter = null } = {}) => {
     if (!pageStatus) {
       return;
     }
-    pageStatus.textContent = text || '';
+    const displayText =
+      text && text.trim().toLowerCase().startsWith('status:')
+        ? text
+        : text
+        ? `Status: ${text}`
+        : '';
+    pageStatus.textContent = displayText;
+    if (clearAfter == null && displayText) {
+      persistentStatus = displayText;
+    } else if (clearAfter == null && !displayText) {
+      pageStatus.textContent = persistentStatus;
+    }
     if (statusClearHandle) {
       clearTimeout(statusClearHandle);
       statusClearHandle = null;
     }
     if (clearAfter != null) {
       statusClearHandle = setTimeout(() => {
-        if (pageStatus.textContent === text) {
-          pageStatus.textContent = '';
+        if (pageStatus.textContent === displayText) {
+          pageStatus.textContent = persistentStatus;
         }
       }, clearAfter);
     }
@@ -126,8 +147,11 @@ document.addEventListener('DOMContentLoaded', () => {
       if (autoScanToggle) {
         autoScanToggle.checked = Boolean(autoScanEnabled);
       }
+      updateScanButtonState(Boolean(autoScanEnabled));
+      return Boolean(autoScanEnabled);
     } catch (error) {
       console.warn('Unable to load settings from storage.', error);
+      return false;
     }
   };
 
@@ -203,13 +227,8 @@ document.addEventListener('DOMContentLoaded', () => {
         console.warn('Unable to persist auto-scan toggle.', error);
       }
 
+      updateScanButtonState(enabled);
       setStatus(enabled ? 'Auto scan enabled.' : 'Auto scan disabled.', { clearAfter: 2000 });
-    });
-  }
-
-  if (debugRefreshBtn) {
-    debugRefreshBtn.addEventListener('click', () => {
-      requestTelemetry();
     });
   }
 
@@ -247,6 +266,110 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const days = Math.round(diff / 86_400_000);
     return `${days}d ago`;
+  };
+
+  const summarizeScan = (scanInfo) => {
+    if (!scanInfo || typeof scanInfo !== 'object') {
+      return null;
+    }
+
+    const when = formatRelativeTime(scanInfo.timestamp);
+
+    if (scanInfo.stopped) {
+      return `Scanning paused${when ? ` (${when})` : ''}.`;
+    }
+    if (scanInfo.error) {
+      const message = scanInfo.message || 'Scan failed.';
+      return `Scan error: ${message}${when ? ` (${when})` : ''}`;
+    }
+
+    const flaggedElements =
+      typeof scanInfo.flaggedElements === 'number' && Number.isFinite(scanInfo.flaggedElements)
+        ? scanInfo.flaggedElements
+        : null;
+    const flaggedSegments =
+      typeof scanInfo.flaggedSegments === 'number' && Number.isFinite(scanInfo.flaggedSegments)
+        ? scanInfo.flaggedSegments
+        : null;
+
+    let summary;
+    const count = flaggedElements ?? flaggedSegments;
+    if (typeof count === 'number') {
+      summary =
+        count > 0
+          ? `Scan complete – ${count} item${count === 1 ? '' : 's'} flagged.`
+          : 'Scan complete – no hate speech found.';
+    } else {
+      summary = 'Scan complete.';
+    }
+
+    if (when) {
+      summary += ` (${when})`;
+    }
+
+    return summary;
+  };
+
+  const updateStatusFromTelemetry = (telemetry = {}) => {
+    if (!telemetry || typeof telemetry !== 'object') {
+      setStatus('Ready to scan');
+      setAPIStatus('idle', 'Ready');
+      updateScanButtonState(false);
+      return;
+    }
+
+    if (telemetry.lastInjectionError) {
+      const message = telemetry.lastInjectionError.message || 'Auto-scan injection failed.';
+      const when = formatRelativeTime(telemetry.lastInjectionError.timestamp);
+      setStatus(`Auto-scan issue: ${message}${when ? ` (${when})` : ''}`);
+      setAPIStatus('error', 'Auto-scan issue');
+      updateScanButtonState(Boolean(telemetry.autoScanEnabled));
+      return;
+    }
+
+    const scanSummary = summarizeScan(telemetry.lastScan);
+    if (scanSummary) {
+      setStatus(scanSummary);
+      if (telemetry.lastScan?.error) {
+        setAPIStatus('error', 'Scan error');
+      } else {
+        const flaggedCount =
+          telemetry.lastScan?.flaggedElements ??
+          telemetry.lastScan?.flaggedSegments ??
+          0;
+        const numericFlagged =
+          typeof flaggedCount === 'number' && Number.isFinite(flaggedCount) ? flaggedCount : 0;
+        setAPIStatus('ok', numericFlagged > 0 ? 'Flagged content' : 'Ready');
+      }
+      updateScanButtonState(Boolean(telemetry.autoScanEnabled));
+      return;
+    }
+
+    if (telemetry.autoScanEnabled) {
+      setStatus('Auto-scan enabled. Monitoring for new posts.');
+      setAPIStatus('idle', 'Monitoring');
+      updateScanButtonState(true);
+      return;
+    }
+
+    setStatus('Ready to scan');
+    setAPIStatus('idle', 'Ready');
+    updateScanButtonState(false);
+  };
+
+  const requestTelemetry = () => {
+    try {
+      chrome.runtime.sendMessage({ source: 'deb-popup', type: 'telemetry-request' }, (response) => {
+        if (chrome.runtime?.lastError) {
+          return;
+        }
+        if (response?.ok && response.telemetry) {
+          updateStatusFromTelemetry(response.telemetry);
+        }
+      });
+    } catch (error) {
+      console.warn('Telemetry request failed:', error);
+    }
   };
 
   const createHistoryItem = (entry) => {
@@ -337,6 +460,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (scanButton) {
     scanButton.addEventListener('click', async () => {
+      if (scanButton.disabled) {
+        return;
+      }
       setStatus('Starting scan…');
       try {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -395,7 +521,7 @@ document.addEventListener('DOMContentLoaded', () => {
             break;
           case 'telemetry-update':
             if (detail.telemetry) {
-              renderTelemetry(detail.telemetry);
+              updateStatusFromTelemetry(detail.telemetry);
             }
             break;
           default:
@@ -420,13 +546,29 @@ document.addEventListener('DOMContentLoaded', () => {
           setStatus(active > 0 ? `Analyzing posts (${active} active${batchInfo})` : 'Finalizing…');
           break;
         }
-        case 'scan-complete':
-          setStatus('Scan complete.', { clearAfter: 2000 });
-          setAPIStatus('ok', 'Scan complete');
+        case 'scan-complete': {
+          const flagged =
+            message.detail?.flaggedElements ??
+            message.detail?.flaggedSegments ??
+            (message.detail?.summary?.flaggedElements ?? message.detail?.summary?.flaggedSegments ?? 0);
+          const safeCount = Number.isFinite(flagged) ? Number(flagged) : 0;
+          if (safeCount > 0) {
+            const label = safeCount === 1 ? 'item' : 'items';
+            setStatus(`Scan complete – ${safeCount} ${label} flagged.`);
+            setAPIStatus('ok', 'Flagged content');
+          } else {
+            setStatus('Scan complete – no hate speech found.');
+            setAPIStatus('ok', 'Scan complete');
+          }
           break;
+        }
         case 'scan-error':
           setStatus(`Scan failed: ${message.detail?.message ?? 'See console.'}`);
           setAPIStatus('error', 'Scan failed');
+          break;
+        case 'scan-stopped':
+          setStatus('Scanning paused on this page.', { clearAfter: 2000 });
+          setAPIStatus('idle', 'Paused');
           break;
         case 'feedback-history-updated':
           loadFeedbackMeta();
@@ -470,9 +612,6 @@ document.addEventListener('DOMContentLoaded', () => {
           const headers = {
             'Content-Type': 'application/json'
           };
-          if (CONFIG.API_KEY) {
-            headers['X-API-Key'] = CONFIG.API_KEY;
-          }
           const response = await fetch(endpoint, {
             method: 'POST',
             headers,
@@ -505,105 +644,23 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  loadSettings();
-  loadFeedbackMeta();
-  requestTelemetry();
-  setAPIStatus('idle', 'Ready');
-});
-  const telemetryState = {
-    autoScanEnabled: null,
-    lastFetch: null,
-    lastScan: null,
-    lastInjectionError: null
-  };
-
-  const renderTelemetry = (data = {}) => {
-    if (!debugAutoScan || !debugLastFetch || !debugLastScan || !debugLastError || !debugDetails) {
-      return;
-    }
-
-    if (typeof data.autoScanEnabled === 'boolean') {
-      telemetryState.autoScanEnabled = data.autoScanEnabled;
-    }
-    if (data.lastFetch) {
-      telemetryState.lastFetch = data.lastFetch;
-    }
-    if (data.lastScan) {
-      telemetryState.lastScan = data.lastScan;
-    }
-    if (data.lastInjectionError) {
-      telemetryState.lastInjectionError = data.lastInjectionError;
-    }
-
-    debugAutoScan.textContent = telemetryState.autoScanEnabled ? 'Enabled' : 'Disabled';
-
-    const fetchInfo = telemetryState.lastFetch;
-    if (fetchInfo) {
-      const when = formatRelativeTime(fetchInfo.timestamp);
-      if (fetchInfo.ok) {
-        const duration = typeof fetchInfo.durationMs === 'number' ? `${fetchInfo.durationMs}ms` : '—';
-        debugLastFetch.textContent = `OK (${fetchInfo.context ?? 'scan'}) • ${duration}`;
-        debugLastFetch.title = [fetchInfo.base, when].filter(Boolean).join(' • ');
-      } else if (fetchInfo.offline) {
-        debugLastFetch.textContent = 'Offline';
-        debugLastFetch.title = when || '';
+  loadSettings()
+    .then((autoEnabled) => {
+      if (autoEnabled) {
+        setStatus('Auto-scan enabled. Monitoring for new posts.');
+        setAPIStatus('idle', 'Monitoring');
       } else {
-        debugLastFetch.textContent = `Error (${fetchInfo.context ?? 'scan'})`;
-        const messages = Array.isArray(fetchInfo.attempts)
-          ? fetchInfo.attempts.map((info) => `${info.base}: ${info.message}`).join('; ')
-          : fetchInfo.message ?? 'Unknown error';
-        debugLastFetch.title = `${messages}${when ? ` • ${when}` : ''}`;
+        setStatus('Ready to scan');
+        setAPIStatus('idle', 'Ready');
       }
-    } else {
-      debugLastFetch.textContent = '—';
-      debugLastFetch.title = '';
-    }
+    })
+    .catch(() => {
+      setStatus('Ready to scan');
+      setAPIStatus('idle', 'Ready');
+    })
+    .finally(() => {
+      requestTelemetry();
+    });
 
-    const scanInfo = telemetryState.lastScan;
-    if (scanInfo) {
-      const summaryParts = [];
-      if (typeof scanInfo.flaggedElements === 'number') {
-        summaryParts.push(`${scanInfo.flaggedElements} flagged el.`);
-      }
-      if (typeof scanInfo.flaggedSegments === 'number') {
-        summaryParts.push(`${scanInfo.flaggedSegments} segments`);
-      }
-      if (typeof scanInfo.threshold === 'number' && Number.isFinite(scanInfo.threshold)) {
-        summaryParts.push(`threshold ${scanInfo.threshold.toFixed(2)}`);
-      }
-      if (typeof scanInfo.style === 'string') {
-        summaryParts.push(`style ${scanInfo.style}`);
-      }
-      debugLastScan.textContent = summaryParts.join(', ') || '—';
-      debugLastScan.title = formatRelativeTime(scanInfo.timestamp) || '';
-    } else {
-      debugLastScan.textContent = '—';
-      debugLastScan.title = '';
-    }
-
-    const errorInfo = telemetryState.lastInjectionError;
-    if (errorInfo) {
-      debugLastError.textContent = errorInfo.message || 'Injection failed';
-      debugLastError.title = formatRelativeTime(errorInfo.timestamp) || '';
-    } else {
-      debugLastError.textContent = 'None';
-      debugLastError.title = '';
-    }
-
-    debugDetails.textContent = JSON.stringify(telemetryState, null, 2);
-  };
-
-  const requestTelemetry = () => {
-    try {
-      chrome.runtime.sendMessage({ source: 'deb-popup', type: 'telemetry-request' }, (response) => {
-        if (chrome.runtime?.lastError) {
-          return;
-        }
-        if (response?.ok && response.telemetry) {
-          renderTelemetry(response.telemetry);
-        }
-      });
-    } catch (error) {
-      console.warn('Telemetry request failed:', error);
-    }
-  };
+  loadFeedbackMeta();
+});

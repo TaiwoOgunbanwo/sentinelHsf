@@ -7,7 +7,6 @@ const ALLOWED_PROTOCOLS = new Set(['http:', 'https:']);
 const DEFAULT_HTTP_BASES = ['http://localhost:5000'];
 const FETCH_RETRY_DELAYS_MS = [0, 800];
 
-const API_KEY_HEADER = CONFIG.API_KEY ? { 'X-API-Key': CONFIG.API_KEY } : {};
 const API_BASES = (() => {
   const list = Array.isArray(CONFIG.API_BASES) ? [...CONFIG.API_BASES] : ['https://localhost:5000'];
   if (!list.some((base) => base.startsWith('http://'))) {
@@ -177,8 +176,7 @@ const fetchFromApi = async (path, payload, context = 'scan') => {
         const response = await fetch(`${base}${path}`, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            ...API_KEY_HEADER
+            'Content-Type': 'application/json'
           },
           body
         });
@@ -262,6 +260,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       console.warn('[Sentinel] Failed to persist auto-scan setting.', error);
     });
 
+    if (!autoScanEnabled) {
+      chrome.tabs.query({}, (tabs) => {
+        if (!Array.isArray(tabs)) {
+          return;
+        }
+        tabs.forEach((tab) => {
+          if (!tab?.id) {
+            return;
+          }
+          chrome.tabs.sendMessage(
+            tab.id,
+            { source: 'deb-background', type: 'stop-auto-scan' },
+            () => {
+              const { lastError } = chrome.runtime;
+              if (lastError && !lastError.message?.includes('Receiving end does not exist')) {
+                console.warn('[Sentinel] Unable to notify tab to stop scanning:', lastError);
+              }
+            }
+          );
+        });
+      });
+    }
+
     if (autoScanEnabled && message.injectCurrentTab) {
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         const tab = tabs?.[0];
@@ -293,6 +314,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         ...message.detail,
         error: true,
         timestamp: Date.now()
+      };
+      broadcastTelemetry();
+    }
+    if (message.type === 'scan-stopped' && message.detail) {
+      telemetry.lastScan = {
+        ...message.detail,
+        stopped: true,
+        timestamp: message.detail.timestamp || Date.now()
       };
       broadcastTelemetry();
     }

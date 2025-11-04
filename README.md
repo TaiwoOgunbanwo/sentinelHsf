@@ -36,7 +36,7 @@ Sentinel is a Chrome manifest v3 extension paired with a secure Flask API that c
   - `ui/popup.*` powers the action popup (manual analysis, scan trigger, sensitivity slider, highlight-style selector, feedback queue/history, auto-scan toggle).
   - `background.js` listens for navigation events, automatically injects the scanner when auto-scan is enabled, and proxies all backend fetches so the content script never triggers mixed-content blocks.
   - `ui/options.*` persists highlight style and threshold settings.
-  - `config.js` centralises runtime constants (API bases, style options, storage keys, default thresholds/API key placeholder).
+  - `config.js` centralises runtime constants (API bases, style options, storage keys, default thresholds) shared across modules.
 - **Flask backend** (`backend/app.py`):
   - Loads `TaiwoOgun/deberta-v3-hate-speech-onnx` via `optimum.onnxruntime`.
   - Exposes `/predict`, `/predict/batch`, and `/report`.
@@ -123,8 +123,12 @@ The archive is written to `dist/sentinel-extension.zip`.
 - Highlight stability pass: grouped duplicate wrappers by snippet, enforce a single show/hide control per detection, and ensure blur/redact toggles flip all fragments simultaneously for cleaner social-feed demos.
 - Auto-scan reliability: background fetches retry with backoff, offline/failed injections surface to the popup, and manual scans share the improved status messaging for examiners.
 - Auto-scan allow list: users can scope automatic injections to a curated list of domains while manual scans remain unrestricted for spot checks.
+- Auto-scan toggle now signals active tabs to halt continuous scanning immediately, so turning it off pauses observers without forcing a page reload.
+- Auto-scan UI refinement: when background scanning is active the manual `Scan This Page` control disables and re-labels itself so examiners instantly see that automatic mode is handling updates.
+- Local-only security posture: removed unused API key plumbing so the extension assumes the backend runs on trusted localhost TLS without shared secrets.
 - Feedback UX upgrades: inline controls display sent/queued/error states, timestamps bubble into the popup history, and examiners can now dismiss feedback entries when they no longer need the context.
-- Telemetry/debug panel: popup now shows auto-scan state, last fetch/scan summaries, and recent errors, with a refresh button driven by background telemetry broadcasts.
+- Plain-language status line: the popup now summarises auto-scan state and the latest scan outcome in a single human-friendly message, keeping debug details out of sight for examiners.
+- Activity & Status panel: status messaging now lives alongside the feedback badge and history, so examiners see pending items and latest scan results in one place.
 - Popup upgrades: manual text analyzer, sensitivity slider, highlight-style radio buttons, feedback history feed, pending-queue badge, auto-scan toggle, and live scan-status indicator.
 - Options page parity with popup (confidence slider + highlight-style radios) plus `chrome.storage.sync` persistence.
 - Auto-scan service worker that requests host permissions, injects the scanner on navigation/activation, and respects the popup toggle.

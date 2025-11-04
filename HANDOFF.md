@@ -11,9 +11,11 @@
 - Background service worker injects the scanner automatically when auto-scan is enabled, proxies all backend fetches (content scripts talk to it via runtime messages), and therefore sidesteps mixed-content blocks on HTTPS pages.
 - Auto-scan reliability improvements: background fetch retries, offline detection, and injection failures bubble up to the popup so examiners immediately know why a scan stopped.
 - Feedback UX polish: inline buttons now reflect sent/queued/error states, popup history gains relative timestamps, and examiners can dismiss entries once reviewed.
-- Telemetry/debug panel added to the popup showing auto-scan status, last fetch/scan metadata, and recent errors with a manual refresh control.
+- Simplified status line replaces the old telemetry panel, surfacing a single human-readable update (ready, scanning, results, or issues) for examiners.
+- Activity & Status card now co-locates the status line with the pending badge and history list, keeping examiner attention in one place.
 - Jest unit tests cover `extension/content/dom.js`; run `npm install && npm test` to validate helper logic before exam sessions.
 - Auto-scan allow list: options page now accepts domain entries and the background worker only auto-injects on those hosts, keeping manual scans available everywhere.
+- Security posture simplified: API key plumbing was removed so the extension assumes a trusted localhost backend without bundling secrets.
 
 ## Additions & Refinements
 
@@ -23,6 +25,8 @@
 - Options page mirrors sensitivity + highlight-style controls with `chrome.storage.sync` persistence shared with the popup.
 - Feedback manager supports offline queueing, retry/backoff, and history stored in `chrome.storage.local`, while `/report` writes to SQLite (`backend/reports.db`).
 - Background worker proxies all prediction/report traffic (with HTTP fallback) and orchestrates auto-scan injections.
+- Auto-scan toggle now notifies active tabs to halt observers immediately when disabled, so rescans stop without forcing a reload.
+- Auto-scan UI refinement ensures the manual scan button disables and re-labels itself when automatic monitoring is active, reinforcing the current mode to examiners.
 - Scripts (`setup-cert.sh`, `dev-server.sh`) automate mkcert provisioning, virtualenv setup, and backend launch.
 - TLS story improved: SAN-enabled self-signed certs, mkcert workflow, and optional `SENTINEL_HTTP_ONLY=1` for plain HTTP demos.
 - Documentation (README, AGENTS, this HANDOFF) now captures cert workflows, feature breadth, and testing expectations for examiners.
@@ -58,7 +62,7 @@
 ## Recent Testing / Logs
 
 - Manual test only: load backend (`python backend/app.py`), accept HTTPS cert in Chrome, load extension, run `Scan This Page`, verify blur controls appear once per post.
-- With auto-scan enabled, navigate to a supported site, refresh, and confirm the scanner injects automatically; disable the toggle and ensure injections stop.
+- With auto-scan enabled, navigate to a supported site, refresh, and confirm the scanner injects automatically; disable the toggle and ensure observers stop on existing tabs (no further automatic rescans).
 - Spot-check feedback queue: toggle browser offline, submit “Not hate?” to confirm it queues, then go back online to ensure it flushes.
 - No automated test suite yet; no CI logs available.
 

@@ -1,4 +1,17 @@
 (() => {
+  if (chrome?.runtime?.onMessage && !window.__sentinelStopListenerRegistered) {
+    chrome.runtime.onMessage.addListener((message) => {
+      if (!message || message.source !== 'deb-background' || message.type !== 'stop-auto-scan') {
+        return;
+      }
+      if (typeof window.__sentinelStopContinuousScan === 'function') {
+        window.__sentinelStopContinuousScan();
+      } else {
+        window.__sentinelStopRequested = true;
+      }
+    });
+    window.__sentinelStopListenerRegistered = true;
+  }
 const createOverlayManagerFallback = ({
   classes,
   dom,
@@ -773,9 +786,24 @@ if (window.__sentinelScannerActive) {
         }
 
         if (sentenceEntries.length === 0) {
-          if (activeBatchCount === 0) {
-            notifyExtension('scan-complete', { active: activeBatchCount });
-            emitEvent('deb-scan-complete', { active: activeBatchCount });
+          if (activeBatchCount === 0 && !abortScanning) {
+            const completionDetail = {
+              active: activeBatchCount,
+              flaggedElements: 0,
+              flaggedSegments: 0,
+              summary: {
+                threshold,
+                style: highlightStyle,
+                processedElements: 0,
+                flaggedElements: 0,
+                flaggedSegments: 0,
+                totalSentences: 0,
+                batchSize: 0,
+                timestamp: Date.now()
+              }
+            };
+            notifyExtension('scan-complete', completionDetail);
+            emitEvent('deb-scan-complete', completionDetail);
           }
           chrome.runtime.sendMessage({
             source: 'deb-telemetry',
@@ -803,6 +831,8 @@ if (window.__sentinelScannerActive) {
         const progressDetail = { active: activeBatchCount, batchSize: sentenceEntries.length };
         emitEvent('deb-scan-progress', progressDetail);
         notifyExtension('scan-progress', progressDetail);
+
+        let lastSummary = null;
 
         try {
           const results = await fetchPredictionBatch(sentenceEntries.map((entry) => entry.text));
@@ -883,6 +913,7 @@ if (window.__sentinelScannerActive) {
             batchSize: results.length,
             timestamp: Date.now()
           };
+          lastSummary = summary;
           chrome.runtime.sendMessage({ source: 'deb-telemetry', type: 'scan-summary', detail: summary });
         } catch (error) {
           abortScanning = true;
@@ -906,7 +937,31 @@ if (window.__sentinelScannerActive) {
           activeBatchCount = Math.max(0, activeBatchCount - 1);
           const finalDetail = { active: activeBatchCount };
           emitEvent('deb-scan-progress', finalDetail);
-          notifyExtension(activeBatchCount === 0 ? 'scan-complete' : 'scan-progress', finalDetail);
+          if (activeBatchCount === 0 && !abortScanning) {
+            const completionDetail = {
+              active: activeBatchCount,
+              flaggedElements: flaggedElementCount,
+              flaggedSegments: flaggedSegmentCount
+            };
+            if (lastSummary) {
+              completionDetail.summary = lastSummary;
+            } else {
+              completionDetail.summary = {
+                threshold,
+                style: highlightStyle,
+                processedElements: elementStates.size,
+                flaggedElements: flaggedElementCount,
+                flaggedSegments: flaggedSegmentCount,
+                totalSentences: sentenceEntries.length,
+                batchSize: sentenceEntries.length,
+                timestamp: Date.now()
+              };
+            }
+            notifyExtension('scan-complete', completionDetail);
+            emitEvent('deb-scan-complete', completionDetail);
+          } else {
+            notifyExtension('scan-progress', finalDetail);
+          }
           scheduleOverlayUpdate();
         }
       };
@@ -949,7 +1004,53 @@ if (window.__sentinelScannerActive) {
 
       const pendingMutationTargets = new Set();
       let mutationTimer = null;
+      let mutationObserver = null;
       const MUTATION_DEBOUNCE_MS = 300;
+
+      const stopContinuousScan = (options = {}) => {
+        if (mutationTimer) {
+          clearTimeout(mutationTimer);
+          mutationTimer = null;
+        }
+        pendingMutationTargets.clear();
+        if (mutationObserver) {
+          mutationObserver.disconnect();
+          mutationObserver = null;
+        }
+        abortScanning = true;
+        if (options.resetHighlights) {
+          clearAll();
+          scheduleOverlayUpdate();
+        }
+        if (options.notify !== false) {
+          notifyExtension('scan-stopped', { reason: options.reason || 'auto-scan-disabled' });
+        }
+        if (chrome?.runtime?.sendMessage) {
+          chrome.runtime.sendMessage(
+            {
+              source: 'deb-telemetry',
+              type: 'scan-stopped',
+              detail: {
+                reason: options.reason || 'auto-scan-disabled',
+                timestamp: Date.now()
+              }
+            },
+            () => {
+              if (chrome.runtime?.lastError && !chrome.runtime.lastError.message?.includes('Receiving end does not exist')) {
+                console.warn('[Sentinel] Failed to report scan stop:', chrome.runtime.lastError);
+              }
+            }
+          );
+        }
+        window.__sentinelScannerActive = false;
+      };
+
+      window.__sentinelStopContinuousScan = stopContinuousScan;
+      if (window.__sentinelStopRequested) {
+        stopContinuousScan({ notify: false });
+        window.__sentinelStopRequested = false;
+        return;
+      }
 
       const flushMutationQueue = () => {
         mutationTimer = null;
@@ -982,7 +1083,7 @@ if (window.__sentinelScannerActive) {
         return;
       }
 
-      const observer = new MutationObserver((mutations) => {
+      mutationObserver = new MutationObserver((mutations) => {
         if (abortScanning) {
           return;
         }
@@ -1000,7 +1101,7 @@ if (window.__sentinelScannerActive) {
         scheduleMutationScan(freshTargets);
       });
 
-      observer.observe(document.body, { childList: true, subtree: true });
+      mutationObserver.observe(document.body, { childList: true, subtree: true });
 
       emitEvent('deb-scan-complete', { active: activeBatchCount });
       notifyExtension('scan-complete', { active: activeBatchCount });

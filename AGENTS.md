@@ -36,13 +36,17 @@ Verify the feedback queue by simulating offline mode, ensuring reports are queue
 - Auto-scan orchestrator injects the scanner on navigation/activation and honors popup toggles, making demos faster.
 - Auto-scan reliability improvements: background fetch retries, offline detection, and injection failures now raise clear popup notices for examiners.
 - Auto-scan allow list: users can scope automatic injections to a curated set of domains via the options page while manual scans remain unrestricted.
+- Auto-scan toggle now notifies active tabs to halt continuous scanning immediately, so switching it off pauses observers without reloading pages.
+- Auto-scan UI refinement: when automatic monitoring is enabled the manual scan button disables and re-labels itself to prevent conflicting actions.
 - Feedback UX polish: inline buttons signal sent/queued/error states, popup history includes relative timestamps, and entries can be dismissed to keep demo logs tidy.
-- Telemetry/debug panel surfaces auto-scan state, last fetch/scan summaries, and recent errors directly in the popup for examiners.
+- Plain-language status line keeps the popup focused on human-readable updates (ready, scanning, results) while deeper telemetry stays out of the main UI.
+- Activity & Status panel combines the status line, “No pending” badge, and feedback history so examiners stay on one card.
 - Jest unit tests cover `extension/content/dom.js`; run via `npm test` after `npm install` to validate helpers.
 - TLS tooling: SAN-enabled self-signed certs, mkcert helper scripts, and `SENTINEL_HTTP_ONLY=1` escape hatch for quick HTTP testing.
 - Backend hardening: dependency guards with actionable messages, CORS-friendly OPTIONS handling, batch endpoint sanity checks, and `/report` validation.
 - Docs + manifest kept in sync (host permissions, resource lists) so examiners can review capabilities quickly.
 - Convenience scripts: `scripts/dev-http.sh` runs the backend in HTTP-only mode for quick demos, and `scripts/package-extension.sh` produces `dist/sentinel-extension.zip` for drag-and-drop loading in Chromium browsers.
+- Security simplification: removed the unused API key placeholder so local deployments rely on trusted localhost HTTPS without distributing shared secrets.
 
 ## Commit & Pull Request Guidelines
 History remains clean—adhere to Conventional Commits (`feat:`, `fix:`, `chore:`) for traceability. Each PR must include: linked issue, summary of extension and API changes, verification steps (`npm run build`, `npx web-ext lint`, `python backend/app.py`, relevant tests), and screenshots or gifs for UI updates. Confirm host permission changes (e.g., `http://localhost:5000/*`) in the PR description. Request review only after lint suites and automated tests pass.

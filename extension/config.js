@@ -1,5 +1,3 @@
-// TODO: After starting backend, replace API_KEY with the printed key
-
 const API_BASES = [
   'https://localhost:5000',
   ...(typeof window !== 'undefined' && window.location?.protocol !== 'https:' ? ['http://localhost:5000'] : [])
@@ -44,7 +42,6 @@ export const FEEDBACK_RETRY_ATTEMPTS = 3;
 export const FEEDBACK_RETRY_DELAYS = [0, 1000, 3000];
 
 export const CONFIG = {
-  API_KEY: '',
   API_BASES,
   DEFAULT_THRESHOLD,
   TEXT_SELECTORS,
