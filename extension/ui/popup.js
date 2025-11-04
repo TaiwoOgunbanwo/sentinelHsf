@@ -350,7 +350,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (chrome?.runtime?.onMessage) {
     chrome.runtime.onMessage.addListener((message) => {
-      if (!message || message.source !== 'deb-scanner') {
+      if (!message) {
+        return;
+      }
+
+      if (message.source === 'deb-background') {
+        const detail = message.detail ?? {};
+        switch (message.type) {
+          case 'background-fetch-offline':
+            if (detail.context === 'scan') {
+              setStatus('Unable to reach the backend (offline?).', { clearAfter: 4000 });
+              setAPIStatus('error', 'Offline');
+            }
+            break;
+          case 'background-fetch-failed': {
+            const summary = Array.isArray(detail.attempts)
+              ? detail.attempts
+                  .map((info) => `${info.base || 'api'}: ${info.message ?? 'failed'}`)
+                  .join('; ')
+              : detail.message;
+            if (detail.context === 'scan') {
+              setStatus(`Scan request failed after retries. ${summary || ''}`.trim(), { clearAfter: 5000 });
+              setAPIStatus('error', 'Scan failed');
+            } else if (detail.context === 'feedback') {
+              setStatus('Feedback submission failed; will retry automatically.', { clearAfter: 4000 });
+            }
+            break;
+          }
+          case 'auto-scan-injection-failed':
+            setStatus('Auto-scan could not inject on this page. Use manual scan.', { clearAfter: 4000 });
+            setAPIStatus('error', 'Auto-scan error');
+            break;
+          default:
+            break;
+        }
+        return;
+      }
+
+      if (message.source !== 'deb-scanner') {
         return;
       }
 

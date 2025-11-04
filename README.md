@@ -109,6 +109,7 @@ The archive is written to `dist/sentinel-extension.zip`.
 - Config-driven content architecture: `content/dom.js`, `content/feedback.js`, `content/overlay.js`, and `extension/config.js` isolate DOM, queueing, UI, and shared constants.
 - Inline blur/redact/highlight wrappers with deduped spans, show/hide toggles, and feedback buttons that hook directly into `/report`.
 - Highlight stability pass: grouped duplicate wrappers by snippet, enforce a single show/hide control per detection, and ensure blur/redact toggles flip all fragments simultaneously for cleaner social-feed demos.
+- Auto-scan reliability: background fetches retry with backoff, offline/failed injections surface to the popup, and manual scans share the improved status messaging for examiners.
 - Popup upgrades: manual text analyzer, sensitivity slider, highlight-style radio buttons, feedback history feed, pending-queue badge, auto-scan toggle, and live scan-status indicator.
 - Options page parity with popup (confidence slider + highlight-style radios) plus `chrome.storage.sync` persistence.
 - Auto-scan service worker that requests host permissions, injects the scanner on navigation/activation, and respects the popup toggle.

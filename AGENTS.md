@@ -34,6 +34,7 @@ Verify the feedback queue by simulating offline mode, ensuring reports are queue
 - Feedback manager persists to SQLite (`backend/reports.db`) plus `chrome.storage.local`, with retry/backoff, offline queueing, and pending-count telemetry.
 - Background service worker proxies `/predict`/`/predict/batch`, enabling HTTP fallbacks and avoiding mixed-content errors on HTTPS pages.
 - Auto-scan orchestrator injects the scanner on navigation/activation and honors popup toggles, making demos faster.
+- Auto-scan reliability improvements: background fetch retries, offline detection, and injection failures now raise clear popup notices for examiners.
 - TLS tooling: SAN-enabled self-signed certs, mkcert helper scripts, and `SENTINEL_HTTP_ONLY=1` escape hatch for quick HTTP testing.
 - Backend hardening: dependency guards with actionable messages, CORS-friendly OPTIONS handling, batch endpoint sanity checks, and `/report` validation.
 - Docs + manifest kept in sync (host permissions, resource lists) so examiners can review capabilities quickly.

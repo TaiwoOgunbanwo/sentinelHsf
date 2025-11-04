@@ -3,6 +3,7 @@ import { CONFIG } from './config.js';
 const AUTO_SCAN_KEY = 'autoScanEnabled';
 const ALLOWED_PROTOCOLS = new Set(['http:', 'https:']);
 const DEFAULT_HTTP_BASES = ['http://localhost:5000'];
+const FETCH_RETRY_DELAYS_MS = [0, 800];
 
 const API_KEY_HEADER = CONFIG.API_KEY ? { 'X-API-Key': CONFIG.API_KEY } : {};
 const API_BASES = (() => {
@@ -12,6 +13,16 @@ const API_BASES = (() => {
   }
   return list;
 })();
+
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const notifyClients = (type, detail = {}) => {
+  try {
+    chrome.runtime.sendMessage({ source: 'deb-background', type, detail });
+  } catch (error) {
+    // Ignore missing listeners
+  }
+};
 
 let autoScanEnabled = false;
 
@@ -48,6 +59,10 @@ const injectScanner = async (tabId) => {
     });
   } catch (error) {
     console.warn('[Sentinel] Auto-scan injection failed:', error);
+    notifyClients('auto-scan-injection-failed', {
+      tabId,
+      error: error?.message || 'Injection failed'
+    });
   }
 };
 
@@ -78,51 +93,75 @@ const handleTabActivated = async (activeInfo) => {
 chrome.tabs.onUpdated.addListener(handleTabUpdated);
 chrome.tabs.onActivated.addListener(handleTabActivated);
 
-const fetchFromApi = async (path, payload) => {
+const fetchFromApi = async (path, payload, context = 'scan') => {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    notifyClients('background-fetch-offline', { path, context });
+    throw new Error('Offline');
+  }
+
   const body = payload != null ? JSON.stringify(payload) : undefined;
-  let lastError;
+  const attempts = [];
+
   for (const base of API_BASES) {
-    try {
-      const response = await fetch(`${base}${path}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...API_KEY_HEADER
-        },
-        body
-      });
-      if (!response.ok) {
-        const message = `HTTP ${response.status}`;
-        lastError = new Error(message);
-        continue;
+    for (let attemptIndex = 0; attemptIndex < FETCH_RETRY_DELAYS_MS.length; attemptIndex += 1) {
+      const delayMs = FETCH_RETRY_DELAYS_MS[attemptIndex];
+      if (delayMs > 0) {
+        await delay(delayMs);
       }
-      return await response.json();
-    } catch (error) {
-      lastError = error;
+
+      try {
+        const response = await fetch(`${base}${path}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...API_KEY_HEADER
+          },
+          body
+        });
+
+        if (!response.ok) {
+          const text = await response.text().catch(() => '');
+          throw new Error(`HTTP ${response.status}${text ? `: ${text}` : ''}`);
+        }
+
+        return await response.json();
+      } catch (error) {
+        attempts.push({
+          base,
+          attempt: attemptIndex + 1,
+          message: error?.message || 'Request failed'
+        });
+      }
     }
   }
-  throw lastError ?? new Error('All API bases failed.');
+
+  notifyClients('background-fetch-failed', { path, context, attempts });
+  const summary = attempts
+    .map((info) => `${info.base} (attempt ${info.attempt}): ${info.message}`)
+    .join('; ');
+  throw new Error(`Failed to fetch ${path}: ${summary}`);
 };
 
 const SUPPORTED_SCANNER_REQUESTS = new Set(['predict-single', 'predict-batch', 'proxy-fetch']);
 
 const handleScannerMessage = async (message) => {
+  const context = message.context ?? 'scan';
   switch (message.type) {
     case 'predict-single':
       if (typeof message.text !== 'string' || !message.text.trim()) {
         throw new Error('Invalid or empty text payload.');
       }
-      return fetchFromApi('/predict', { text: message.text });
+      return fetchFromApi('/predict', { text: message.text }, context);
     case 'predict-batch':
       if (!Array.isArray(message.texts) || message.texts.length === 0) {
         throw new Error('`texts` must be a non-empty array.');
       }
-      return fetchFromApi('/predict/batch', { texts: message.texts });
+      return fetchFromApi('/predict/batch', { texts: message.texts }, context);
     case 'proxy-fetch':
       if (typeof message.path !== 'string' || !message.path.startsWith('/')) {
         throw new Error('A valid relative `path` is required.');
       }
-      return fetchFromApi(message.path, message.payload ?? null);
+      return fetchFromApi(message.path, message.payload ?? null, context);
     default:
       return null;
   }

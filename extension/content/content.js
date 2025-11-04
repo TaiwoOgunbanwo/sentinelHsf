@@ -568,7 +568,8 @@ if (window.__sentinelScannerActive) {
       }
     });
 
-  const fetchWithFallback = async (path, payload) => sendBackgroundRequest({ type: 'proxy-fetch', path, payload });
+  const fetchWithFallback = async (path, payload, options = {}) =>
+    sendBackgroundRequest({ type: 'proxy-fetch', path, payload, context: options.context ?? 'scan' });
 
       const notifyExtension = (type, detail = {}) => {
         try {
@@ -685,7 +686,7 @@ if (window.__sentinelScannerActive) {
         defaultStyle: DEFAULT_STYLE
       });
 
-      const fetchPredictionSingle = async (text) => fetchWithFallback('/predict', { text });
+      const fetchPredictionSingle = async (text) => fetchWithFallback('/predict', { text }, { context: 'scan' });
 
       const fetchPredictionBatch = async (texts) => {
         if (!Array.isArray(texts) || texts.length === 0) {
@@ -693,7 +694,7 @@ if (window.__sentinelScannerActive) {
         }
 
         try {
-          const response = await fetchWithFallback('/predict/batch', { texts });
+          const response = await fetchWithFallback('/predict/batch', { texts }, { context: 'scan' });
           if (!Array.isArray(response?.results) || response.results.length !== texts.length) {
             throw new Error('Unexpected batch response shape.');
           }

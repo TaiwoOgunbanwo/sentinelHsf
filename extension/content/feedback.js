@@ -185,7 +185,7 @@ export const createFeedbackManager = ({
         await delay(delayMs);
       }
       try {
-        await fetchWithFallback('/report', payload);
+        await fetchWithFallback('/report', payload, { context: 'feedback' });
         return;
       } catch (error) {
         lastError = error;
