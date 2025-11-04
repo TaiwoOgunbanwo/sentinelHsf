@@ -16,6 +16,13 @@ const API_BASES = (() => {
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const telemetry = {
+  autoScanEnabled: false,
+  lastFetch: null,
+  lastScan: null,
+  lastInjectionError: null
+};
+
 const notifyClients = (type, detail = {}) => {
   try {
     chrome.runtime.sendMessage({ source: 'deb-background', type, detail });
@@ -24,15 +31,25 @@ const notifyClients = (type, detail = {}) => {
   }
 };
 
+const broadcastTelemetry = () => {
+  notifyClients('telemetry-update', {
+    telemetry: JSON.parse(JSON.stringify(telemetry))
+  });
+};
+
 let autoScanEnabled = false;
 
 const readAutoScanSetting = async () => {
   try {
     const stored = await chrome.storage.sync.get([AUTO_SCAN_KEY]);
     autoScanEnabled = Boolean(stored?.[AUTO_SCAN_KEY]);
+    telemetry.autoScanEnabled = autoScanEnabled;
+    broadcastTelemetry();
   } catch (error) {
     console.warn('[Sentinel] Failed to read auto-scan setting.', error);
     autoScanEnabled = false;
+    telemetry.autoScanEnabled = false;
+    broadcastTelemetry();
   }
 };
 
@@ -59,6 +76,12 @@ const injectScanner = async (tabId) => {
     });
   } catch (error) {
     console.warn('[Sentinel] Auto-scan injection failed:', error);
+    telemetry.lastInjectionError = {
+      tabId,
+      message: error?.message || 'Injection failed',
+      timestamp: Date.now()
+    };
+    broadcastTelemetry();
     notifyClients('auto-scan-injection-failed', {
       tabId,
       error: error?.message || 'Injection failed'
@@ -96,11 +119,20 @@ chrome.tabs.onActivated.addListener(handleTabActivated);
 const fetchFromApi = async (path, payload, context = 'scan') => {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
     notifyClients('background-fetch-offline', { path, context });
+    telemetry.lastFetch = {
+      ok: false,
+      offline: true,
+      path,
+      context,
+      timestamp: Date.now()
+    };
+    broadcastTelemetry();
     throw new Error('Offline');
   }
 
   const body = payload != null ? JSON.stringify(payload) : undefined;
   const attempts = [];
+  const startTime = Date.now();
 
   for (const base of API_BASES) {
     for (let attemptIndex = 0; attemptIndex < FETCH_RETRY_DELAYS_MS.length; attemptIndex += 1) {
@@ -124,7 +156,18 @@ const fetchFromApi = async (path, payload, context = 'scan') => {
           throw new Error(`HTTP ${response.status}${text ? `: ${text}` : ''}`);
         }
 
-        return await response.json();
+        const data = await response.json();
+        telemetry.lastFetch = {
+          ok: true,
+          path,
+          context,
+          base,
+          durationMs: Date.now() - startTime,
+          attempts: attempts.length + 1,
+          timestamp: Date.now()
+        };
+        broadcastTelemetry();
+        return data;
       } catch (error) {
         attempts.push({
           base,
@@ -139,6 +182,14 @@ const fetchFromApi = async (path, payload, context = 'scan') => {
   const summary = attempts
     .map((info) => `${info.base} (attempt ${info.attempt}): ${info.message}`)
     .join('; ');
+  telemetry.lastFetch = {
+    ok: false,
+    path,
+    context,
+    attempts,
+    timestamp: Date.now()
+  };
+  broadcastTelemetry();
   throw new Error(`Failed to fetch ${path}: ${summary}`);
 };
 
@@ -174,6 +225,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.source === 'deb-popup' && message.type === 'auto-scan-updated') {
     autoScanEnabled = Boolean(message.enabled);
+    telemetry.autoScanEnabled = autoScanEnabled;
     chrome.storage.sync.set({ [AUTO_SCAN_KEY]: autoScanEnabled }).catch((error) => {
       console.warn('[Sentinel] Failed to persist auto-scan setting.', error);
     });
@@ -185,6 +237,32 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           injectScanner(tab.id);
         }
       });
+    }
+    sendResponse?.({ ok: true });
+    broadcastTelemetry();
+    return false;
+  }
+
+  if (message.source === 'deb-popup' && message.type === 'telemetry-request') {
+    sendResponse?.({ ok: true, telemetry: JSON.parse(JSON.stringify(telemetry)) });
+    return false;
+  }
+
+  if (message.source === 'deb-telemetry') {
+    if (message.type === 'scan-summary' && message.detail) {
+      telemetry.lastScan = {
+        ...message.detail,
+        timestamp: Date.now()
+      };
+      broadcastTelemetry();
+    }
+    if (message.type === 'scan-error' && message.detail) {
+      telemetry.lastScan = {
+        ...message.detail,
+        error: true,
+        timestamp: Date.now()
+      };
+      broadcastTelemetry();
     }
     sendResponse?.({ ok: true });
     return false;

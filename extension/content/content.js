@@ -728,6 +728,8 @@ if (window.__sentinelScannerActive) {
 
         const sentenceEntries = [];
         const elementStates = new Map();
+        let flaggedElementCount = 0;
+        let flaggedSegmentCount = 0;
 
         for (const element of elements) {
           if (abortScanning) {
@@ -775,6 +777,19 @@ if (window.__sentinelScannerActive) {
             notifyExtension('scan-complete', { active: activeBatchCount });
             emitEvent('deb-scan-complete', { active: activeBatchCount });
           }
+          chrome.runtime.sendMessage({
+            source: 'deb-telemetry',
+            type: 'scan-summary',
+            detail: {
+              threshold,
+              style: highlightStyle,
+              processedElements: 0,
+              flaggedElements: 0,
+              flaggedSegments: 0,
+              totalSentences: 0,
+              timestamp: Date.now()
+            }
+          });
           scheduleOverlayUpdate();
           return;
         }
@@ -844,6 +859,8 @@ if (window.__sentinelScannerActive) {
             }
 
             if (wrappers.length > 0) {
+              flaggedElementCount += 1;
+              flaggedSegmentCount += wrappers.length;
               const payload = {
                 label: 'HATE',
                 score: maxScore,
@@ -856,10 +873,30 @@ if (window.__sentinelScannerActive) {
             element.dataset.debSignature = signature;
             processedSignatures.add(signature);
           });
+          const summary = {
+            threshold,
+            style: highlightStyle,
+            processedElements: elementStates.size,
+            flaggedElements: flaggedElementCount,
+            flaggedSegments: flaggedSegmentCount,
+            totalSentences: sentenceEntries.length,
+            batchSize: results.length,
+            timestamp: Date.now()
+          };
+          chrome.runtime.sendMessage({ source: 'deb-telemetry', type: 'scan-summary', detail: summary });
         } catch (error) {
           abortScanning = true;
           console.error('[Sentinel] Batch prediction failed:', error);
           notifyExtension('scan-error', { message: error?.message ?? 'Unknown error' });
+          chrome.runtime.sendMessage({
+            source: 'deb-telemetry',
+            type: 'scan-error',
+            detail: {
+              threshold,
+              style: highlightStyle,
+              message: error?.message ?? 'Unknown error'
+            }
+          });
           elementStates.forEach(({ element }) => {
             delete element.dataset.debScanState;
             delete element.dataset.scanned;

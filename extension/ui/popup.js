@@ -16,6 +16,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const historyList = document.getElementById('feedbackHistoryList');
   const pendingCountBadge = document.getElementById('pendingCount');
   const autoScanToggle = document.getElementById('autoScanToggle');
+  const debugAutoScan = document.getElementById('debugAutoScan');
+  const debugLastFetch = document.getElementById('debugLastFetch');
+  const debugLastScan = document.getElementById('debugLastScan');
+  const debugLastError = document.getElementById('debugLastError');
+  const debugDetails = document.getElementById('debugDetails');
+  const debugRefreshBtn = document.getElementById('debugRefresh');
   const highlightLabels = {
     highlight: 'Highlight',
     blur: 'Blur',
@@ -201,6 +207,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  if (debugRefreshBtn) {
+    debugRefreshBtn.addEventListener('click', () => {
+      requestTelemetry();
+    });
+  }
+
   const renderPendingCount = (count) => {
     if (!pendingCountBadge) {
       return;
@@ -381,6 +393,11 @@ document.addEventListener('DOMContentLoaded', () => {
             setStatus('Auto-scan could not inject on this page. Use manual scan.', { clearAfter: 4000 });
             setAPIStatus('error', 'Auto-scan error');
             break;
+          case 'telemetry-update':
+            if (detail.telemetry) {
+              renderTelemetry(detail.telemetry);
+            }
+            break;
           default:
             break;
         }
@@ -490,5 +507,103 @@ document.addEventListener('DOMContentLoaded', () => {
 
   loadSettings();
   loadFeedbackMeta();
+  requestTelemetry();
   setAPIStatus('idle', 'Ready');
 });
+  const telemetryState = {
+    autoScanEnabled: null,
+    lastFetch: null,
+    lastScan: null,
+    lastInjectionError: null
+  };
+
+  const renderTelemetry = (data = {}) => {
+    if (!debugAutoScan || !debugLastFetch || !debugLastScan || !debugLastError || !debugDetails) {
+      return;
+    }
+
+    if (typeof data.autoScanEnabled === 'boolean') {
+      telemetryState.autoScanEnabled = data.autoScanEnabled;
+    }
+    if (data.lastFetch) {
+      telemetryState.lastFetch = data.lastFetch;
+    }
+    if (data.lastScan) {
+      telemetryState.lastScan = data.lastScan;
+    }
+    if (data.lastInjectionError) {
+      telemetryState.lastInjectionError = data.lastInjectionError;
+    }
+
+    debugAutoScan.textContent = telemetryState.autoScanEnabled ? 'Enabled' : 'Disabled';
+
+    const fetchInfo = telemetryState.lastFetch;
+    if (fetchInfo) {
+      const when = formatRelativeTime(fetchInfo.timestamp);
+      if (fetchInfo.ok) {
+        const duration = typeof fetchInfo.durationMs === 'number' ? `${fetchInfo.durationMs}ms` : '—';
+        debugLastFetch.textContent = `OK (${fetchInfo.context ?? 'scan'}) • ${duration}`;
+        debugLastFetch.title = [fetchInfo.base, when].filter(Boolean).join(' • ');
+      } else if (fetchInfo.offline) {
+        debugLastFetch.textContent = 'Offline';
+        debugLastFetch.title = when || '';
+      } else {
+        debugLastFetch.textContent = `Error (${fetchInfo.context ?? 'scan'})`;
+        const messages = Array.isArray(fetchInfo.attempts)
+          ? fetchInfo.attempts.map((info) => `${info.base}: ${info.message}`).join('; ')
+          : fetchInfo.message ?? 'Unknown error';
+        debugLastFetch.title = `${messages}${when ? ` • ${when}` : ''}`;
+      }
+    } else {
+      debugLastFetch.textContent = '—';
+      debugLastFetch.title = '';
+    }
+
+    const scanInfo = telemetryState.lastScan;
+    if (scanInfo) {
+      const summaryParts = [];
+      if (typeof scanInfo.flaggedElements === 'number') {
+        summaryParts.push(`${scanInfo.flaggedElements} flagged el.`);
+      }
+      if (typeof scanInfo.flaggedSegments === 'number') {
+        summaryParts.push(`${scanInfo.flaggedSegments} segments`);
+      }
+      if (typeof scanInfo.threshold === 'number' && Number.isFinite(scanInfo.threshold)) {
+        summaryParts.push(`threshold ${scanInfo.threshold.toFixed(2)}`);
+      }
+      if (typeof scanInfo.style === 'string') {
+        summaryParts.push(`style ${scanInfo.style}`);
+      }
+      debugLastScan.textContent = summaryParts.join(', ') || '—';
+      debugLastScan.title = formatRelativeTime(scanInfo.timestamp) || '';
+    } else {
+      debugLastScan.textContent = '—';
+      debugLastScan.title = '';
+    }
+
+    const errorInfo = telemetryState.lastInjectionError;
+    if (errorInfo) {
+      debugLastError.textContent = errorInfo.message || 'Injection failed';
+      debugLastError.title = formatRelativeTime(errorInfo.timestamp) || '';
+    } else {
+      debugLastError.textContent = 'None';
+      debugLastError.title = '';
+    }
+
+    debugDetails.textContent = JSON.stringify(telemetryState, null, 2);
+  };
+
+  const requestTelemetry = () => {
+    try {
+      chrome.runtime.sendMessage({ source: 'deb-popup', type: 'telemetry-request' }, (response) => {
+        if (chrome.runtime?.lastError) {
+          return;
+        }
+        if (response?.ok && response.telemetry) {
+          renderTelemetry(response.telemetry);
+        }
+      });
+    } catch (error) {
+      console.warn('Telemetry request failed:', error);
+    }
+  };

@@ -111,6 +111,7 @@ The archive is written to `dist/sentinel-extension.zip`.
 - Highlight stability pass: grouped duplicate wrappers by snippet, enforce a single show/hide control per detection, and ensure blur/redact toggles flip all fragments simultaneously for cleaner social-feed demos.
 - Auto-scan reliability: background fetches retry with backoff, offline/failed injections surface to the popup, and manual scans share the improved status messaging for examiners.
 - Feedback UX upgrades: inline controls display sent/queued/error states, timestamps bubble into the popup history, and examiners can now dismiss feedback entries when they no longer need the context.
+- Telemetry/debug panel: popup now shows auto-scan state, last fetch/scan summaries, and recent errors, with a refresh button driven by background telemetry broadcasts.
 - Popup upgrades: manual text analyzer, sensitivity slider, highlight-style radio buttons, feedback history feed, pending-queue badge, auto-scan toggle, and live scan-status indicator.
 - Options page parity with popup (confidence slider + highlight-style radios) plus `chrome.storage.sync` persistence.
 - Auto-scan service worker that requests host permissions, injects the scanner on navigation/activation, and respects the popup toggle.
