@@ -6,4 +6,6 @@ dist/
 screenshots/
 *.db
 *.sqlite
+*.venv/
+.venv/
 .DS_Store

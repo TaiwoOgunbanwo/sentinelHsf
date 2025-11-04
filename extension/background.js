@@ -1,5 +1,17 @@
+import { CONFIG } from './config.js';
+
 const AUTO_SCAN_KEY = 'autoScanEnabled';
 const ALLOWED_PROTOCOLS = new Set(['http:', 'https:']);
+const DEFAULT_HTTP_BASES = ['http://localhost:5000'];
+
+const API_KEY_HEADER = CONFIG.API_KEY ? { 'X-API-Key': CONFIG.API_KEY } : {};
+const API_BASES = (() => {
+  const list = Array.isArray(CONFIG.API_BASES) ? [...CONFIG.API_BASES] : ['https://localhost:5000'];
+  if (!list.some((base) => base.startsWith('http://'))) {
+    list.push(...DEFAULT_HTTP_BASES);
+  }
+  return list;
+})();
 
 let autoScanEnabled = false;
 
@@ -66,12 +78,62 @@ const handleTabActivated = async (activeInfo) => {
 chrome.tabs.onUpdated.addListener(handleTabUpdated);
 chrome.tabs.onActivated.addListener(handleTabActivated);
 
+const fetchFromApi = async (path, payload) => {
+  const body = payload != null ? JSON.stringify(payload) : undefined;
+  let lastError;
+  for (const base of API_BASES) {
+    try {
+      const response = await fetch(`${base}${path}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...API_KEY_HEADER
+        },
+        body
+      });
+      if (!response.ok) {
+        const message = `HTTP ${response.status}`;
+        lastError = new Error(message);
+        continue;
+      }
+      return await response.json();
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError ?? new Error('All API bases failed.');
+};
+
+const SUPPORTED_SCANNER_REQUESTS = new Set(['predict-single', 'predict-batch', 'proxy-fetch']);
+
+const handleScannerMessage = async (message) => {
+  switch (message.type) {
+    case 'predict-single':
+      if (typeof message.text !== 'string' || !message.text.trim()) {
+        throw new Error('Invalid or empty text payload.');
+      }
+      return fetchFromApi('/predict', { text: message.text });
+    case 'predict-batch':
+      if (!Array.isArray(message.texts) || message.texts.length === 0) {
+        throw new Error('`texts` must be a non-empty array.');
+      }
+      return fetchFromApi('/predict/batch', { texts: message.texts });
+    case 'proxy-fetch':
+      if (typeof message.path !== 'string' || !message.path.startsWith('/')) {
+        throw new Error('A valid relative `path` is required.');
+      }
+      return fetchFromApi(message.path, message.payload ?? null);
+    default:
+      return null;
+  }
+};
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (!message || message.source !== 'deb-popup') {
-    return;
+  if (!message) {
+    return undefined;
   }
 
-  if (message.type === 'auto-scan-updated') {
+  if (message.source === 'deb-popup' && message.type === 'auto-scan-updated') {
     autoScanEnabled = Boolean(message.enabled);
     chrome.storage.sync.set({ [AUTO_SCAN_KEY]: autoScanEnabled }).catch((error) => {
       console.warn('[Sentinel] Failed to persist auto-scan setting.', error);
@@ -85,10 +147,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
       });
     }
-    if (sendResponse) {
-      sendResponse({ ok: true });
-    }
+    sendResponse?.({ ok: true });
+    return false;
   }
+
+  if (message.source === 'deb-scanner') {
+    if (!SUPPORTED_SCANNER_REQUESTS.has(message.type)) {
+      return false;
+    }
+    handleScannerMessage(message)
+      .then((data) => sendResponse?.({ ok: true, data }))
+      .catch((error) => {
+        console.warn('[Sentinel] Background prediction failed:', error);
+        sendResponse?.({ ok: false, error: error?.message || 'Prediction failed.' });
+      });
+    return true; // keep the channel open for async response
+  }
+
+  return undefined;
 });
 
 chrome.runtime.onInstalled.addListener(() => {

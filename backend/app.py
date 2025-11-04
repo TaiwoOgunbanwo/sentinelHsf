@@ -206,6 +206,11 @@ if __name__ == "__main__":
         response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
         return response
 
+    if os.getenv("SENTINEL_HTTP_ONLY") == "1":
+        print("SENTINEL_HTTP_ONLY=1 set; serving plain HTTP on http://localhost:5000")
+        app.run(debug=True, host="0.0.0.0", port=5000)
+        sys.exit(0)
+
     custom_cert = os.getenv("SENTINEL_CERT_FILE")
     custom_key = os.getenv("SENTINEL_KEY_FILE")
     if custom_cert and custom_key and os.path.exists(custom_cert) and os.path.exists(custom_key):
@@ -225,12 +230,23 @@ if __name__ == "__main__":
         pkey = crypto.PKey()
         pkey.generate_key(crypto.TYPE_RSA, 2048)
         x509 = crypto.X509()
-        x509.get_subject().CN = "localhost"
+        subj = x509.get_subject()
+        subj.CN = "localhost"
         x509.set_serial_number(1000)
         x509.gmtime_adj_notBefore(0)
         x509.gmtime_adj_notAfter(10 * 365 * 24 * 60 * 60)
-        x509.set_issuer(x509.get_subject())
+        x509.set_issuer(subj)
         x509.set_pubkey(pkey)
+
+        san_entries = [b"DNS:localhost", b"IP:127.0.0.1", b"IP:::1"]
+        x509.add_extensions(
+            [
+                crypto.X509Extension(b"basicConstraints", False, b"CA:FALSE"),
+                crypto.X509Extension(b"keyUsage", True, b"digitalSignature,keyEncipherment"),
+                crypto.X509Extension(b"extendedKeyUsage", False, b"serverAuth"),
+                crypto.X509Extension(b"subjectAltName", False, b", ".join(san_entries)),
+            ]
+        )
         x509.sign(pkey, "sha256")
 
         cert_dir = os.path.join(os.path.expanduser("~"), ".finalextension")

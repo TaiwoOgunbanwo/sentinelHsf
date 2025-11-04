@@ -1,14 +1,26 @@
-# Handoff Snapshot (2025-11-01)
+# Handoff Snapshot (2025-11-03)
 
 ## Current Status
 
-- Chrome MV3 extension + Flask backend run locally (trust `~/.finalextension/localhost-cert.pem` in Keychain to silence HTTPS warnings).
+- Chrome MV3 extension + Flask backend run locally (trust the SAN-enabled `~/.finalextension/localhost-cert.pem` in Keychain to silence HTTPS warnings, or set `SENTINEL_HTTP_ONLY=1` to skip TLS during development).
 - ONNX model (`TaiwoOgun/deberta-v3-hate-speech-onnx`) loads via `optimum.onnxruntime`; GPU optional (torch fallback to CPU).
-- Content script (`extension/content/content.js`) now scopes highlights to canonical text containers, dedupes flagged spans, renders consolidated blur/redact controls with show/hide + feedback buttons, and queues feedback with retry/backoff.
+- Content script (`extension/content/content.js`) now scopes highlights to canonical text containers, delegates tooltip/inline UI to `content/overlay.js`, dedupes flagged spans, and queues feedback with retry/backoff.
 - Backend exposes `/predict`, `/predict/batch`, `/report`; feedback persistence via `backend/reports.db`.
 - Popup includes a live sensitivity slider, highlight-style selector, a feedback activity panel (pending count + history) backed by `chrome.storage.local`, and an auto-scan toggle.
-- Content helpers are modularised (`extension/content/feedback.js`, `extension/content/dom.js`) to keep the bootstrap file slim.
-- Background service worker injects the scanner automatically when auto-scan is enabled and host access is granted.
+- Content helpers are modularised (`extension/content/feedback.js`, `extension/content/dom.js`, `extension/content/overlay.js`, `extension/config.js`) to keep the bootstrap file slim.
+- Background service worker injects the scanner automatically when auto-scan is enabled, proxies all backend fetches (content scripts talk to it via runtime messages), and therefore sidesteps mixed-content blocks on HTTPS pages.
+
+## Additions & Refinements
+
+- Content script fully modularised: DOM helpers, overlay renderer, feedback queue, and config constants live in isolated modules, shrinking the injected payload.
+- Inline highlight/blur/redact UX dedupes spans, enforces a single show/hide toggle per detection, and wires `Not hate?/Flag` buttons to `/report`.
+- Popup now features manual analyzer, confidence slider, highlight-style radios, live scan status, feedback activity list, pending-queue badge, and auto-scan toggle.
+- Options page mirrors sensitivity + highlight-style controls with `chrome.storage.sync` persistence shared with the popup.
+- Feedback manager supports offline queueing, retry/backoff, and history stored in `chrome.storage.local`, while `/report` writes to SQLite (`backend/reports.db`).
+- Background worker proxies all prediction/report traffic (with HTTP fallback) and orchestrates auto-scan injections.
+- Scripts (`setup-cert.sh`, `dev-server.sh`) automate mkcert provisioning, virtualenv setup, and backend launch.
+- TLS story improved: SAN-enabled self-signed certs, mkcert workflow, and optional `SENTINEL_HTTP_ONLY=1` for plain HTTP demos.
+- Documentation (README, AGENTS, this HANDOFF) now captures cert workflows, feature breadth, and testing expectations for examiners.
 
 ## Open Challenges / Known Gaps
 
@@ -26,7 +38,9 @@
 
 - Extension files: `extension/`
   - `content/content.js`
+  - `content/overlay.js`
   - `background.js`
+  - `config.js`
   - `ui/popup.html`, `ui/popup.js`, `ui/options.html`, `ui/options.js`
   - `manifest.json` (MV3, permissions include http/https localhost + optional all-sites access for auto-scan)
 - Backend: `backend/`
@@ -64,9 +78,9 @@
   2. `mkcert -install`
   3. `mkcert -cert-file ~/.finalextension/mkcert/localhost.pem -key-file ~/.finalextension/mkcert/localhost-key.pem localhost 127.0.0.1 ::1`
   4. Export `SENTINEL_CERT_FILE`/`SENTINEL_KEY_FILE` to those paths before `python backend/app.py`.
-- If mkcert certificates are not supplied, trust `~/.finalextension/localhost-cert.pem` manually (Keychain → Always Trust) or Chrome will flag `https://localhost:5000` as insecure and block requests.
+- If mkcert certificates are not supplied, trust `~/.finalextension/localhost-cert.pem` manually (Keychain → Always Trust). The generated cert now carries SAN entries for `localhost`, `127.0.0.1`, and `::1`, so Chrome accepts it once trusted. Alternatively set `SENTINEL_HTTP_ONLY=1` before running `python backend/app.py` to expose plain HTTP for quick testing.
 - Feedback queue + history persist in `chrome.storage.local` under keys `debPendingReports` and `debFeedbackHistory`; flushes trigger automatically when connectivity returns.
 - Auto-scan state is stored in `chrome.storage.sync` (`autoScanEnabled`) and mirrored by the background service worker.
 - Scripts: `scripts/setup-cert.sh` provisions mkcert certs; `scripts/dev-server.sh` wraps setup and launches the backend in one step.
-- When editing `extension/content/content.js`, note that key helpers now live in `extension/content/feedback.js` and `extension/content/dom.js`; keep new logic modular.
+- When editing `extension/content/content.js`, note that key helpers now live in `extension/content/feedback.js`, `extension/content/dom.js`, and `extension/content/overlay.js`; keep new logic modular.
 - Keep README/HANDOFF in sync with dependency or workflow changes.
