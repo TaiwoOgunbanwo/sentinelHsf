@@ -4,7 +4,7 @@
 Root holds the manifest plus the domain-specific docs (`README.md`, `AGENTS.md`, `HANDOFF.md`). The Chrome extension lives under `extension/` with `content/` for injected scripts and helper modules (`content.js` bootstrap, `overlay.js` for tooltip/inline UI, `feedback.js`, `dom.js`, `config.js`), `ui/` for popup/options surfaces, and `background.js` for the service worker that drives auto-scan and now proxies all backend fetches so content scripts never hit HTTP endpoints directly. The Flask API sits in `backend/` (`backend/app.py`, `backend/requirements.txt`) and now writes feedback into `backend/reports.db`; it reuses TLS cert/key files under `~/.finalextension/`. Screenshots and generated artifacts stay out of git via `.gitignore`.
 
 ## Build, Test, and Development Commands
-Install extension deps with `npm install`; backend deps with `pip install -r backend/requirements.txt` (installs Flask-CORS, pyOpenSSL, transformers, optimum[onnxruntime]; PyTorch is optional for GPU execution). Build via `npm run build`. For iterative work run `npm run dev` and `npx web-ext run --source-dir dist`. Use `./scripts/dev-server.sh` to provision certificates via `mkcert`, create a virtualenv, and launch the backend in a single step. If you need the manual workflow, run:
+Install extension deps with `npm install`; backend deps with `pip install -r backend/requirements.txt` (installs Flask-CORS, pyOpenSSL, transformers, optimum[onnxruntime]; PyTorch is optional for GPU execution). Build via `npm run build`. For iterative work run `npm run dev` and `npx web-ext run --source-dir dist`. Provision certificates via mkcert and launch the backend manually:
 
 ```bash
 mkdir -p ~/.finalextension/mkcert
@@ -43,10 +43,10 @@ Verify the feedback queue by simulating offline mode, ensuring reports are queue
 - Activity & Status panel combines the status line, “No pending” badge, and feedback history so examiners stay on one card.
 - Popup modules now split status, settings, telemetry, analyzer, and feedback logic into dedicated files so `popup.js` just coordinates them.
 - Jest unit tests cover `extension/content/dom.js`; run via `npm test` after `npm install` to validate helpers.
-- TLS tooling: SAN-enabled self-signed certs, mkcert helper scripts, and `SENTINEL_HTTP_ONLY=1` escape hatch for quick HTTP testing.
+- TLS tooling: SAN-enabled self-signed certs, mkcert workflows documented above, and the `SENTINEL_HTTP_ONLY=1` escape hatch for quick HTTP testing.
 - Backend hardening: dependency guards with actionable messages, CORS-friendly OPTIONS handling, batch endpoint sanity checks, and `/report` validation.
 - Docs + manifest kept in sync (host permissions, resource lists) so examiners can review capabilities quickly.
-- Convenience scripts: `scripts/dev-http.sh` runs the backend in HTTP-only mode for quick demos, and `scripts/package-extension.sh` produces `dist/sentinel-extension.zip` for drag-and-drop loading in Chromium browsers.
+- Former convenience scripts (`scripts/dev-http.sh`, `scripts/package-extension.sh`, etc.) are now excluded from version control; recreate them locally if you prefer automation.
 - Security simplification: removed the unused API key placeholder so local deployments rely on trusted localhost HTTPS without distributing shared secrets.
 
 ## Commit & Pull Request Guidelines

@@ -8,6 +8,7 @@ screenshots/
 *.sqlite
 *.venv/
 .venv/
+scripts/
 node_modules/
 .npm/
 .pnpm-store/
