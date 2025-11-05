@@ -202,8 +202,27 @@ const createDomHelpers = (config) => {
   };
 
   const buildSignature = (element, text) => {
+    if (!element) {
+      return null;
+    }
     const stable = resolveStableIdentifier(element);
-    return stable ? `${window.location.hostname}:${stable}` : `${window.location.hostname}:${text.toLowerCase()}`;
+    if (stable) {
+      return `${window.location.hostname}:${stable}`;
+    }
+    const fallbackText = typeof text === 'string' ? text : (element.innerText ?? element.textContent ?? '');
+    const normalized = fallbackText.trim().toLowerCase();
+    if (!normalized) {
+      const selectors = [
+        element.getAttribute?.('data-testid'),
+        element.getAttribute?.('role'),
+        element.className && String(element.className).split(/\s+/).filter(Boolean).join('.')
+      ].filter(Boolean);
+      if (selectors.length) {
+        return `${window.location.hostname}:fallback:${selectors.join(':')}`;
+      }
+      return `${window.location.hostname}:fallback:${Date.now()}`;
+    }
+    return `${window.location.hostname}:${normalized}`;
   };
 
   return {
