@@ -27,6 +27,7 @@
 - Background worker proxies all prediction/report traffic (with HTTP fallback) and orchestrates auto-scan injections.
 - Auto-scan toggle now notifies active tabs to halt observers immediately when disabled, so rescans stop without forcing a reload.
 - Auto-scan UI refinement ensures the manual scan button disables and re-labels itself when automatic monitoring is active, reinforcing the current mode to examiners.
+- Popup modules split status, settings, telemetry, analyzer, and feedback panels into separate files, leaving `popup.js` as a lightweight orchestrator.
 - Scripts (`setup-cert.sh`, `dev-server.sh`) automate mkcert provisioning, virtualenv setup, and backend launch.
 - TLS story improved: SAN-enabled self-signed certs, mkcert workflow, and optional `SENTINEL_HTTP_ONLY=1` for plain HTTP demos.
 - Documentation (README, AGENTS, this HANDOFF) now captures cert workflows, feature breadth, and testing expectations for examiners.

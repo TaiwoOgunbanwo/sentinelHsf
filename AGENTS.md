@@ -41,6 +41,7 @@ Verify the feedback queue by simulating offline mode, ensuring reports are queue
 - Feedback UX polish: inline buttons signal sent/queued/error states, popup history includes relative timestamps, and entries can be dismissed to keep demo logs tidy.
 - Plain-language status line keeps the popup focused on human-readable updates (ready, scanning, results) while deeper telemetry stays out of the main UI.
 - Activity & Status panel combines the status line, “No pending” badge, and feedback history so examiners stay on one card.
+- Popup modules now split status, settings, telemetry, analyzer, and feedback logic into dedicated files so `popup.js` just coordinates them.
 - Jest unit tests cover `extension/content/dom.js`; run via `npm test` after `npm install` to validate helpers.
 - TLS tooling: SAN-enabled self-signed certs, mkcert helper scripts, and `SENTINEL_HTTP_ONLY=1` escape hatch for quick HTTP testing.
 - Backend hardening: dependency guards with actionable messages, CORS-friendly OPTIONS handling, batch endpoint sanity checks, and `/report` validation.
