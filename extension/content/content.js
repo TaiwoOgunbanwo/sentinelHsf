@@ -1,6 +1,3 @@
-import { createApiClient } from './api.js';
-import { startScanner } from './scanner.js';
-
 (() => {
   if (chrome?.runtime?.onMessage && !window.__sentinelStopListenerRegistered) {
     chrome.runtime.onMessage.addListener((message) => {
@@ -47,7 +44,15 @@ import { startScanner } from './scanner.js';
 
   const bootstrap = async () => {
     try {
-      const [{ CONFIG }, { createFeedbackManager }, { createDomHelpers }] = await Promise.all([
+      const [
+        { createApiClient },
+        { startScanner },
+        { CONFIG },
+        { createFeedbackManager },
+        { createDomHelpers }
+      ] = await Promise.all([
+        import(chrome.runtime.getURL('extension/content/api.js')),
+        import(chrome.runtime.getURL('extension/content/scanner.js')),
         import(chrome.runtime.getURL('extension/config.js')),
         import(chrome.runtime.getURL('extension/content/feedback.js')),
         import(chrome.runtime.getURL('extension/content/dom.js'))
@@ -100,4 +105,3 @@ import { startScanner } from './scanner.js';
 
   bootstrap();
 })();
-
