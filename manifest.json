@@ -20,7 +20,9 @@
         "extension/config.js",
         "extension/content/feedback.js",
         "extension/content/dom.js",
-        "extension/content/overlay.js"
+        "extension/content/overlay.js",
+        "extension/content/api.js",
+        "extension/content/scanner.js"
       ],
       "matches": [
         "<all_urls>"
